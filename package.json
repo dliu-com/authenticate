@@ -1,0 +1,30 @@
+{
+  "name": "authenticate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static Microsoft-issued API token console for auth.dliu.com",
+  "scripts": {
+    "build": "npm run typecheck && node scripts/build-console.mjs",
+    "build:lambda": "esbuild lambda/index.js --bundle --platform=node --target=node22 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=build/lambda/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && npm run build:lambda && node --test test/*.test.mjs",
+    "synth": "npm run build && cdk synth --quiet",
+    "deploy": "npm run typecheck && node scripts/build-console.mjs --require-config && cdk deploy"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^5.27.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-ssm": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "aws-cdk-lib": "^2.275.0",
+    "constructs": "^10.4.2",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.1146.1",
+    "esbuild": "^0.25.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

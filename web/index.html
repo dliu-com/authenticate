@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>API access | dliu.com</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="dl-page">
+  <header class="dl-header">
+    <a class="dl-brand" href="/"><img class="dl-logo" src="/logo.svg" alt="" width="32" height="32">DL auth</a>
+    <nav class="dl-nav" aria-label="Site">
+      <a class="dl-button auth-docs-button" href="/docs" aria-label="Docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h10l6 6v12H4zM14 3v6h6M8 13h8M8 17h8"/></svg>
+        <span>Docs</span>
+      </a>
+    </nav>
+  </header>
+  <main class="dl-main dl-narrow">
+    <h1>Sign in. Get your token.</h1>
+    <p class="token-intro dl-muted">Get a token for your trusted tools.</p>
+    <section class="dl-card token-card" aria-label="Microsoft sign-in">
+      <button id="sign-in" class="dl-button dl-signin" type="button" disabled>Sign in with Microsoft</button>
+      <p id="status" class="dl-muted" role="status" aria-live="polite">Getting ready...</p>
+      <noscript><p>Enable JavaScript to sign in.</p></noscript>
+    </section>
+    <section id="token-panel" class="dl-card token-card" aria-labelledby="token-heading" hidden>
+      <h2 id="token-heading">Your token</h2>
+      <dl class="token-meta">
+        <dt class="dl-muted">Expires</dt><dd id="expires"></dd>
+      </dl>
+      <label class="token-label" for="token">Save or copy whenever you need it</label>
+      <textarea id="token" class="token-field" readonly autocomplete="off" autocapitalize="off" spellcheck="false"
+        aria-describedby="token-warning"></textarea>
+      <div class="token-actions">
+        <button id="save" class="dl-button dl-button-primary" type="button" disabled>Save file</button>
+        <button id="copy-file" class="dl-button" type="button" disabled>Copy token file</button>
+        <button id="copy" class="dl-button" type="button" disabled>Copy token</button>
+        <button id="clear" class="dl-button" type="button">Clear</button>
+      </div>
+      <p class="token-note dl-muted">Save as <code>~/.dliu_token</code>, including the leading dot.
+        Save file and Copy token file include the token and UTC expiry.</p>
+      <p id="token-warning" class="token-note dl-muted">Keep your token private. Only use it in tools you trust.</p>
+    </section>
+    <p class="token-note dl-muted">Kept on this page until cleared, closed or expired.</p>
+  </main>
+  <footer class="dl-footer">
+    <a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a>
+    <a href="https://dliu.com">dliu.com</a> &middot; <a href="/docs">Docs</a>
+  </footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

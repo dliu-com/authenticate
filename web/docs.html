@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Docs | DL auth</title>
+  <meta name="description" content="Microsoft API tokens: architecture, cost, security and usage for auth.dliu.com">
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
+  <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/docs.js"></script>
+</head>
+<body class="dl-page">
+  <header class="dl-header">
+    <a class="dl-brand" href="/"><img class="dl-logo" src="/logo.svg" alt="" width="32" height="32">DL auth</a>
+    <nav class="dl-nav" aria-label="Site">
+      <a class="dl-button auth-docs-button" href="/docs" aria-current="page" aria-label="Docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h10l6 6v12H4zM14 3v6h6M8 13h8M8 17h8"/></svg>
+        <span>Docs</span>
+      </a>
+      <a class="dl-button dl-button-primary" href="/">Get token</a>
+    </nav>
+  </header>
+  <main class="dl-main dl-docs-main">
+    <nav class="dl-tabs" aria-label="Docs sections">
+      <a href="#architecture">Technical architecture</a>
+      <a href="#cost">Cost</a>
+      <a href="#security">Security</a>
+      <a href="#api">API</a>
+    </nav>
+    <article id="architecture" class="dl-docs">
+      <h2>How it works</h2>
+      <p class="lead">auth.dliu.com is a small, static page for obtaining a Microsoft-issued API
+        access token. Sign in with an assigned Microsoft account, save or copy the token, then use
+        it in a trusted API tool or agent. Microsoft handles sign-in and token issuance;
+        this site does not run its own authentication broker.</p>
+      <div class="dg-stats">
+        <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span><div class="dg-text"><strong>1 token issuer</strong><small>Microsoft Entra ID, not this website</small></div></div>
+        <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6h2M7 17h2"/></svg></span><div class="dg-text"><strong>0 auth backends</strong><small>Static files; no token API or session database</small></div></div>
+        <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div class="dg-text"><strong>Browser-only memory</strong><small>Reusable until cleared, the page closes or Microsoft expiry</small></div></div>
+      </div>
+      <figure class="dg">
+        <figcaption>Components and trust boundaries</figcaption>
+        <div class="dg-tier dg-untrusted">
+          <div class="dg-tier-label"><span class="dg-badge">Browser</span><strong>You and your tools</strong></div>
+          <div class="dg-tier-nodes">
+            <div class="dg-node"><div class="dg-text"><strong>Token page</strong><small>Microsoft MSAL runs in your browser; the token is briefly visible here.</small></div></div>
+            <div class="dg-node"><div class="dg-text"><strong>Trusted API client</strong><small>Receives the copied bearer token. No Microsoft password or refresh token is copied.</small></div></div>
+          </div>
+        </div>
+        <div class="dg-tier dg-edge">
+          <div class="dg-tier-label"><span class="dg-badge">CDN</span><strong>CloudFront</strong></div>
+          <div class="dg-tier-nodes">
+            <div class="dg-node"><div class="dg-text"><strong>HTTPS and headers</strong><small>Delivers the site with no-store responses and a restrictive Content Security Policy.</small></div></div>
+            <div class="dg-node"><div class="dg-text"><strong>Global edge delivery</strong><small>All CloudFront edge regions are eligible, including Europe and Asia. Supports HTTP/2 and HTTP/3; clients negotiate the protocol.</small></div></div>
+            <div class="dg-node"><div class="dg-text"><strong>Static routing</strong><small>A small edge function maps /docs to the docs file. It does not process tokens.</small></div></div>
+          </div>
+        </div>
+        <div class="dg-tier dg-private">
+          <div class="dg-tier-label"><span class="dg-badge">S3</span><strong>Private static files</strong></div>
+          <div class="dg-tier-nodes">
+            <div class="dg-node"><div class="dg-text"><strong>Site bucket</strong><small>HTML, CSS, locally bundled MSAL and public application configuration. No user tokens or signing secrets.</small></div></div>
+          </div>
+        </div>
+        <div class="dg-tier dg-app">
+          <div class="dg-tier-label"><span class="dg-badge">Identity / API</span><strong>Microsoft and AWS</strong></div>
+          <div class="dg-tier-nodes">
+            <div class="dg-node"><div class="dg-text"><strong>Microsoft Entra ID</strong><small>Sign-in, MFA, application assignments, consent, token issuance and signing.</small></div></div>
+            <div class="dg-node"><div class="dg-text"><strong>API Gateway</strong><small>Validates Microsoft's signature, issuer, audience, expiry and route scopes.</small></div></div>
+            <div class="dg-node"><div class="dg-text"><strong>Application Lambda</strong><small>Checks trusted gateway context, approved client, the shared assigned-user role and the site's route scope, then performs the operation.</small></div></div>
+          </div>
+        </div>
+      </figure>
+      <h2>Obtaining a token</h2>
+      <figure class="dg">
+        <figcaption>Microsoft sign-in to browser-only token use</figcaption>
+        <div class="dg-flow">
+          <div class="dg-step"><div class="dg-text"><strong>1. Open auth</strong><small>Click Sign in with Microsoft. All integrated site API scopes are requested automatically.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>2. Sign in at Microsoft</strong><small>Microsoft handles credentials, MFA, account assignment and consent.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>3. Return to the browser</strong><small>MSAL exchanges the authorization code with PKCE. The static server never receives the access token.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>4. Save or copy</strong><small>Save the token and UTC expiry to a local file, or copy the token. It stays on this page so you can repeat either action.</small></div></div>
+        </div>
+        <p class="dg-note">There is no permission picker. The console requests the configured Video,
+          Files, Blog and Trip planner API scopes together. API access requires assignment to
+          the shared dliu API user role; ordinary website sign-in does not grant API access.</p>
+      </figure>
+      <h2>One logical API, multiple sites</h2>
+      <p>The existing <strong>dliu API</strong> Entra registration defines the shared audience and
+        per-site API permissions. It also serves as the browser client with an exact SPA callback
+        at <code>https://auth.dliu.com/redirect.html</code>. No client secret is needed.</p>
+      <p>A token can work across sites only after each API is configured to trust that same resource
+        and enforce the shared API role and its own scopes. This does not change the sites' ordinary website
+        sign-in or make a token for Microsoft Graph valid for these APIs.</p>
+      <p class="source">Uses Microsoft's authorization-code flow with PKCE and MSAL Browser.
+        Video's managed API has passed live read/write verification. Files, Blog and Trip planner
+        require their own configuration, release and live API verification before use.</p>
+    </article>
+    <article id="cost" class="dl-docs">
+      <h2>Running costs</h2>
+      <p class="lead">The token console is static. There is no always-on server or authentication
+        database. Opening the page delivers files; obtaining tokens happens directly with Microsoft.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Service</th><th>What is billed</th><th>When it runs</th></tr></thead>
+          <tbody>
+            <tr><td>Amazon S3</td><td>Small site files and origin requests</td><td>Storage and CloudFront origin reads</td></tr>
+            <tr><td>CloudFront</td><td>HTTPS requests and data transfer</td><td>Site and documentation visits</td></tr>
+            <tr><td>CloudFront Function</td><td>Viewer-request invocations</td><td>Every viewer request; rewrites only the fixed documentation path</td></tr>
+            <tr><td>Route 53 / ACM</td><td>Existing hosted-zone/DNS billing; certificate terms depend on the certificate type</td><td>Domain and HTTPS setup</td></tr>
+            <tr><td>Microsoft Entra</td><td>Your applicable subscription and identity feature licensing</td><td>Sign-in, assignments, consent and token policies</td></tr>
+            <tr><td>Application APIs</td><td>Each site's API Gateway, Lambda, storage and transfer costs</td><td>Only when that API is called; these costs are separate from Auth</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>These are billing components, not a quoted monthly total or a promise of free usage.
+        The deployment uses no-store responses rather than caching the console, and CDK may create
+        deployment-only helper functions. Application API costs are separate.</p>
+      <p>CloudFront uses Price Class All rather than limiting eligible edge regions. Charges
+        depend on traffic, delivery region and the account's remaining applicable allowance;
+        enabling global delivery does not guarantee a zero-cost bill.</p>
+      <p class="source">See <a href="https://aws.amazon.com/cloudfront/pricing/" rel="noreferrer">CloudFront pricing</a>
+        and <a href="https://aws.amazon.com/s3/pricing/" rel="noreferrer">S3 pricing</a> for current rates.</p>
+    </article>
+    <article id="security" class="dl-docs">
+      <h2>Security</h2>
+      <p class="lead">Microsoft issues and signs the token. AWS validates it at the API boundary.
+        This page retains it in the current browser page, which must remain trusted while the token is present.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Responsibility</th><th>Managed by</th><th>Boundary</th></tr></thead>
+          <tbody>
+            <tr><td>Password, MFA and sign-in</td><td>Microsoft</td><td>Credentials are entered on Microsoft's sign-in page.</td></tr>
+            <tr><td>API assignment and consent</td><td>Microsoft Entra</td><td>Explicit assignment to the User-only dliu API user role is required; ordinary website users are not API users.</td></tr>
+            <tr><td>Token issuance and signing</td><td>Microsoft</td><td>No site-generated JWT, client secret or custom signing key.</td></tr>
+            <tr><td>Signature and standard claim validation</td><td>AWS API Gateway JWT authorizer</td><td>Uses Microsoft's cached public keys; rejects invalid tokens before Lambda invocation.</td></tr>
+            <tr><td>Application authorization</td><td>Each application's Lambda</td><td>Requires trusted gateway claims, the approved client, the shared API user role and exact site-specific route scope before running the action.</td></tr>
+            <tr><td>Token display and export</td><td>This page and your device</td><td>A compromised page, extension or device can steal the token while it is available.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h2>Automatic cache-clearing decision</h2>
+      <p>Auth is excluded from the one-day automatic cache-clearing policy. CloudFront uses
+        <code>CACHING_DISABLED</code>, every response has
+        <code>Cache-Control: no-store, max-age=0</code>, and error-cache TTLs are zero.
+        There is no edge-cache retention period to expire, so no scheduled cache-clearing job
+        or one-day cache lifetime is needed. Normal deployments still invalidate
+        <code>/*</code> to publish releases; that is separate from periodic clearing.</p>
+      <p>The private S3 bucket holds the site's source assets, not an expendable cache or user
+        tokens. Do not apply a one-day S3 object-expiration rule or delete those assets as cache
+        cleanup: the site needs them to remain available. This decision does not change
+        current-page token memory, explicit user exports or Microsoft's token expiry and
+        revocation rules.</p>
+      <h2>No saved token cache</h2>
+      <p>MSAL is configured with memory-only storage and explicit no-cache directives for access,
+        ID and refresh tokens. The SDK cache is cleared immediately after acquisition, including
+        on failure. Only the access token is displayed or exported.</p>
+      <p>The token stays in the current page's JavaScript memory after saving, copying or switching
+        tabs. Clear, reload, navigation, closing the page or Microsoft expiry removes it from this
+        page. It does not save tokens in cookies, local storage,
+        session storage, IndexedDB, a backend or logs. MSAL may use session storage for temporary
+        OAuth transaction metadata. JavaScript memory is not guaranteed to be forensically erased.</p>
+      <p>Auth's static hosting never receives the generated token. When a trusted client uses it
+        against an application API, API Gateway and the request handler process it for that request, without
+        an application-level user-token cache or persistent token store. Warm Lambda runtimes
+        can retain physical memory until garbage collection; there is no promise of instant
+        forensic erasure when an invocation returns.</p>
+      <div class="dg-callout"><div><strong>Clearing is not revocation.</strong> The clipboard may still
+        contain the token, clipboard history may retain it, and an explicitly saved file persists
+        until you remove it. Exported tokens remain valid until Microsoft's expiry. The page
+        cannot clear copies in your files, tools or agents.</div></div>
+      <h2>Token lifetime and revocation</h2>
+      <p>An app-specific Entra token lifetime policy has been assigned with a target of
+        <code>23:59:59</code>, just under 24 hours; it is not an organisation-wide default.
+        Actual issued-token lifetime remains unverified. Without an effective custom policy,
+        access tokens commonly last 60-90 minutes. Always use the actual expiry displayed from
+        Microsoft's response; the page cannot extend an existing token.</p>
+      <p>A copied access token cannot refresh itself. Microsoft may reject future issuance or
+        renewal, but removing an assignment, signing out or clearing this page does not guarantee
+        immediate invalidation of an already-issued bearer token.</p>
+      <h2>What a site compromise means</h2>
+      <p>With no stored credentials or user tokens and no active user browser running the site,
+        control of the static server alone does not let an attacker forge your Microsoft token.
+        But malicious page code can steal a token on your next visit, and an open page may attempt
+        SSO using an existing Microsoft session even without another password prompt.</p>
+      <p>HTTPS encrypts the connection. It does not prevent XSS, compromised JavaScript or device
+        compromise. Locally bundled scripts, no third-party analytics, a restrictive CSP,
+        no user-generated HTML, no-store responses and explicit clearing/expiry reduce exposure;
+        they do not make an untrusted page safe.</p>
+      <h2>Threat model: an attacker knows the source code</h2>
+      <p>Assume an attacker can read the entire public repository, the bundled browser code,
+        OAuth application identifiers, redirect URLs and API documentation. None of those is
+        a password or signing secret. Knowing them does not let the attacker forge Microsoft's
+        token signature or grant themselves an API role. Security must come from verified
+        tokens and explicit authorization, not hidden source code or undisclosed endpoints.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Attacker capability</th><th>Boundary and remaining risk</th></tr></thead>
+          <tbody>
+            <tr><td>Reads or copies the public code</td><td>Microsoft still controls account authentication, consent and assignment. Each API must validate the signature, tenant, audience, expiry, user identity, role and exact route scope. The static console is not the API authorization boundary.</td></tr>
+            <tr><td>Knows the public SPA client ID</td><td>A public client has no secret. The client ID and token's <code>azp</code> are not proof that the caller is the official webpage. PKCE protects the authorization-code exchange; it does not make a public client confidential or protect an already-stolen bearer token.</td></tr>
+            <tr><td>Steals a copied token or plaintext credential file</td><td>The bearer can exercise every granted permission until expiry or earlier rejection. A shared <code>api.access</code> token with all requested scopes can affect all integrated apps, including destructive operations. Keep exports private and give them only to trusted tools.</td></tr>
+            <tr><td>Controls deployed page code, dependencies or the deployment account</td><td>Malicious code can capture tokens during future visits or acquisitions. No-store, HTTPS and a clean public repository do not stop an authorized publisher from serving malicious code. Protect deployment access and review dependency and release changes.</td></tr>
+            <tr><td>Controls the browser, an extension or the local device</td><td>The displayed token, clipboard and saved files may be exposed. Current-page memory is a retention limit, not protection against a compromised device. Clearing the page cannot erase external copies or guarantee immediate revocation.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>What threat-model tests can establish</h3>
+      <p>Use synthetic credentials and isolated browser mocks to test configuration rejection,
+        explicit scope requests, disabled SDK token caching, cache cleanup after failed
+        acquisition, export formats, repeat copying, expiry, navigation and stale-operation
+        handling. Infrastructure checks can assert private-origin access, CSP, disabled edge
+        caching and no-store headers. Negative tests are evidence for those tested boundaries,
+        not proof that every attack is impossible or that live Entra and every application's
+        authorization settings are correct.</p>
+      <p>The known-source review exercised the installed MSAL implementation's PKCE/S256,
+        state and nonce rejection, popup/bridge restrictions and cleanup, origin lookalikes
+        and malformed credential exports with synthetic data. It found no confirmed
+        exploitable issue or real secret in the reviewed publishable source snapshot.
+        This was a local review, not a live penetration test, a dependency-advisory guarantee
+        or clearance of future edits, remote Git history or other applications.</p>
+      <p>The dependency-advisory check on 2026-11-02 reported
+        <a href="https://github.com/advisories/GHSA-g3hv-75wg-m249" rel="noreferrer">a moderate
+        denial-of-service advisory in minimatch</a>, bundled by the installed CDK library.
+        This dependency is used by local deployment tooling, not the browser token console.
+        No attacker-controlled glob input was found in the reviewed Auth deployment path.
+        The audit reported no automatic fix; monitor a compatible CDK update rather than
+        treating the dependency audit as completely clean.</p>
+      <h3>Before publishing source</h3>
+      <p>Review every file selected for commit and the Git history for credentials, bearer
+        tokens, private configuration and personal information. Ignore rules do not remove
+        data already tracked or committed. Keep generated configuration and deployment
+        artifacts out of source control, use placeholders in examples, and review dependency
+        changes. If a real secret has been exposed, removing it from the latest file alone
+        is insufficient: revoke or rotate it and address the published history.</p>
+      <p class="source">See Microsoft's <a href="https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens" rel="noreferrer">access-token guidance</a>
+        and <a href="https://learn.microsoft.com/en-us/entra/identity-platform/configurable-token-lifetimes" rel="noreferrer">configurable token lifetimes</a>.</p>
+    </article>
+    <article id="api" class="dl-docs">
+      <h2>Shared API authentication</h2>
+      <p class="lead">This is the authentication reference for dliu.com APIs: obtaining a
+        Microsoft-issued access token, saving/loading local credentials and sending the token.
+        Each application's API documentation owns its endpoints, payloads, responses and
+        required scopes/roles, and links here for authentication.</p>
+      <ol>
+        <li>Sign in with a Microsoft account that is assigned the required API access.</li>
+        <li>All integrated site permissions are requested automatically; check the displayed expiry.</li>
+        <li>Save or copy as needed while the token remains valid.</li>
+        <li>Use the trusted API URL and route documented by the application, not an assumed website API origin.</li>
+        <li>When the token expires, return here for a new one. There is no refresh token to export.</li>
+      </ol>
+      <h2>One API user role, site-specific scopes</h2>
+      <p>All sites share Microsoft's token issuer, API audience and approved browser client.
+        The User-only <strong>dliu API user</strong> role, whose token value is
+        <code>api.access</code>, is shared by Video, Files, Blog and Trip planner. Assignment to
+        this role permits API access across all four sites, but each operation still requires
+        its exact delegated scope. The role never bypasses scope checks, token validation or
+        an application's existing data-access rules.</p>
+      <p>API access does not replace website sign-in, cookies or share links. Other organisation
+        users can continue using the standard webpages without this role; a website session
+        never substitutes for the API role. Assign the role only to the intended API operator,
+        not to every organisation member.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Application</th><th>Requested delegated scopes</th></tr></thead>
+          <tbody>
+            <tr><td>Video</td><td><code>video.read</code>, <code>video.write</code>, <code>video.delete</code></td></tr>
+            <tr><td>Files</td><td><code>files.read</code>, <code>files.write</code>, <code>files.delete</code></td></tr>
+            <tr><td>Blog</td><td><code>blog.read</code>, <code>blog.write</code>, <code>blog.delete</code></td></tr>
+            <tr><td>Trip planner</td><td><code>trip.read</code>, <code>trip.write</code>, <code>trip.delete</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The application's API guide defines which scope each operation requires and any
+        additional access restrictions. The shared API role is an application permission, not
+        a Microsoft directory-administrator role. The token console never requests Microsoft Graph
+        management permissions.</p>
+      <p>After an administrator adds an integration, scope or role assignment, obtain a new
+        token here and save it again. An already-exported token does not acquire new claims,
+        and clients cannot renew it by editing <code>~/.dliu_token</code>. Only configured and
+        deployed APIs are usable; the application guide gives its actual managed API URL.</p>
+      <h2>Saving a local token file</h2>
+      <p>After sign-in, choose <strong>Save file</strong>. In supported desktop Edge and Chrome,
+        the native Save As dialog suggests <code>.dliu_token</code>; choose your home folder
+        to save it at <code>~/.dliu_token</code>. A website cannot silently select or write to
+        your home directory. It does not upload the token or retain a file handle.</p>
+      <p>Chrome on macOS sanitizes suggested filenames and can remove the leading dot.
+        The site still requests <code>.dliu_token</code>, but cannot override the browser's
+        filename sanitization. Type the leading dot back into <strong>Save As</strong> before
+        saving. If a different name is chosen, the page warns that clients need the default
+        name; a file named <code>dliu_token</code> is not <code>~/.dliu_token</code>.</p>
+      <p>Browsers without a Save As API show <strong>Download file</strong> instead. Move the
+        downloaded file to your home folder and ensure its name is <code>.dliu_token</code>,
+        including the leading dot.</p>
+      <pre class="code"><code>token=&lt;Microsoft-access-token&gt;
+expires_at=&lt;actual-expiry-in-UTC&gt;</code></pre>
+      <p><strong>Copy token file</strong> copies this complete two-field record, including the
+        actual UTC expiration time, for you to paste into <code>~/.dliu_token</code> as plain
+        text. <strong>Copy token</strong> copies only the access token for a trusted tool's
+        bearer-token field; it is not a complete credential file. Neither copy action writes
+        a local file or discards the valid token from this page.</p>
+      <p>The expiry comes from Microsoft's response, not a fixed 24-hour assumption. The file
+        contains no ID token, refresh token or password. Saving, copying, cancellation or failure
+        leaves the valid token available for another attempt. Clear, expiry or leaving the page
+        cancels a save still waiting for a destination. An operation already committing to disk
+        may finish; clearing the page cannot undo a saved file.</p>
+      <div class="dg-callout"><strong>The file is plaintext.</strong> Keep it private and outside
+        source control. The browser controls filesystem permissions; on macOS/Linux you can
+        restrict access with <code>chmod 600 ~/.dliu_token</code>. Clearing the page does not
+        delete the saved file or revoke its token.</div>
+      <h2>Default credentials for clients and agents</h2>
+      <p>Look for <code>~/.dliu_token</code> on the machine running the API client or agent.
+        Parse the two fields as data; do not <code>source</code> the file or print its contents.
+        Reject missing, malformed or expired credentials before sending a request. A remote
+        agent cannot automatically read a file on your Mac: provide credentials through its
+        approved secret configuration, never through chat or the Auth website.</p>
+      <p>Application requesters reread this file for every request. An explicit access-token
+        override takes precedence; an empty/invalid override fails instead of falling back.
+        A token-file override selects an absolute
+        credential-file path (use <code>$HOME/.dliu_token</code>, not a literal <code>~/</code>
+        in that variable). Saved-file mode checks both <code>expires_at</code> and JWT
+        <code>exp</code>, using the earlier expiry. Raw-token-only files need a fresh
+        <strong>Save file</strong> export. These local checks are not signature authorization;
+        the application gateway still validates Microsoft's token.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Requester</th><th>Access-token override</th><th>Token-file override</th></tr></thead>
+          <tbody>
+            <tr><td>Video</td><td><code>VIDEO_API_ACCESS_TOKEN</code></td><td><code>VIDEO_API_TOKEN_FILE</code></td></tr>
+            <tr><td>Files</td><td><code>FILES_API_ACCESS_TOKEN</code></td><td><code>FILES_API_TOKEN_FILE</code></td></tr>
+            <tr><td>Blog</td><td><code>BLOG_API_ACCESS_TOKEN</code></td><td><code>BLOG_API_TOKEN_FILE</code></td></tr>
+            <tr><td>Trip planner</td><td><code>TRIP_API_ACCESS_TOKEN</code></td><td>Uses the default file; its API guide documents supported overrides.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Overrides are optional; the default workflow uses the saved file. These variables
+        configure the local requester, not Auth. Application guides supply each requester's
+        API base and site-specific usage. Explicit access-token mode leaves expiry enforcement
+        to the gateway; the requester must not silently fall back to another credential source.</p>
+      <p>The Video requester alone retains a separate native-client mode selected by explicit
+        native tenant/client/audience settings. Leave those settings unset when using
+        browser-saved credentials; that native client is not approved by the current
+        browser-client API guard. The Files, Blog and Trip planner requesters do not acquire
+        Microsoft credentials themselves.</p>
+      <h2>Sending the token</h2>
+      <p>Use a trusted client's secret bearer-token field, or send this header directly to the
+        application's HTTPS API. Use an access token, not an ID token, password or refresh token.
+        Do not put it in a URL, source control, chat, request logs or verbose HTTP traces.</p>
+      <pre class="code"><code>GET /&lt;application-route&gt; HTTP/1.1
+Host: &lt;managed-api-host&gt;
+Authorization: Bearer &lt;access-token&gt;</code></pre>
+      <h3>Read-only curl request from the default file</h3>
+      <p>Set <code>API_REQUEST_URL</code> to a trusted HTTPS endpoint from the application's API
+        docs. This example validates the saved record and keeps the token out of curl's command
+        arguments and output; only the API response is printed.</p>
+      <pre class="code"><code>API_REQUEST_URL='https://&lt;trusted-api-host&gt;/&lt;read-only-route&gt;'
+python3 - "$API_REQUEST_URL" &lt;&lt;'PY'
+import base64, datetime, json, re, subprocess, sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+def fail(message):
+    raise SystemExit(message)
+
+try:
+    lines = (Path.home() / ".dliu_token").read_text(encoding="utf-8").splitlines()
+except OSError:
+    fail("Cannot read ~/.dliu_token. Use Save file in Auth.")
+fields = {}
+for line in lines:
+    if not line:
+        continue
+    key, separator, value = line.partition("=")
+    if not separator or key not in ("token", "expires_at") or key in fields:
+        fail("Malformed credential file. Export it again from Auth.")
+    fields[key] = value
+if set(fields) != {"token", "expires_at"}:
+    fail("The file must contain token= and expires_at= fields.")
+token = fields["token"]
+if not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", token):
+    fail("Invalid access-token format.")
+try:
+    part = token.split(".")[1]
+    payload = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    token_expiry = payload["exp"]
+    if isinstance(token_expiry, bool) or not isinstance(token_expiry, int) or token_expiry &lt;= 0:
+        raise ValueError()
+    saved = fields["expires_at"]
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z", saved):
+        raise ValueError()
+    saved_expiry = datetime.datetime.fromisoformat(saved.replace("Z", "+00:00")).timestamp()
+except (ValueError, KeyError, TypeError):
+    fail("Invalid token or expiry metadata. Export the file again.")
+now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+if now &gt;= min(saved_expiry, token_expiry):
+    fail("Token expired. Sign in to Auth and save a new file.")
+url = urlsplit(sys.argv[1])
+if url.scheme != "https" or not url.hostname or url.username or url.password or url.fragment:
+    fail("Use a trusted HTTPS API URL without URL credentials.")
+config = 'header = "Authorization: Bearer ' + token + '"\n'
+subprocess.run(["curl", "--fail-with-body", "--silent", "--show-error",
+                "--config", "-", sys.argv[1]], input=config, text=True, check=True)
+PY</code></pre>
+      <h2>Application API references</h2>
+      <p>Use the application's reference for its managed API URL, endpoints, required
+        permissions, request and response schemas, workflows and errors. Each reference
+        requires this shared authentication guide rather than duplicating credential instructions.</p>
+      <ul>
+        <li><a href="https://video.dliu.com/docs/api" rel="noreferrer">Video API reference</a></li>
+        <li><a href="https://files.dliu.com/docs/api" rel="noreferrer">Files API reference</a></li>
+        <li><a href="https://blog.dliu.com/docs/api" rel="noreferrer">Blog API reference</a></li>
+        <li><a href="https://plan.dliu.com/docs/api" rel="noreferrer">Trip planner API reference</a></li>
+      </ul>
+      <h2>Common failures</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Failure</th><th>What to check</th></tr></thead>
+          <tbody>
+            <tr><td>Microsoft sign-in is unavailable</td><td>Site configuration, exact SPA redirect, popup blocking and administrator consent.</td></tr>
+            <tr><td>Account not assigned</td><td>Entra enterprise application assignment and the required user role.</td></tr>
+            <tr><td>401 or 403 from the managed API</td><td>Correct endpoint, expiry, Microsoft issuer/audience, approved client, required scopes and role. Do not use an ID token.</td></tr>
+            <tr><td>Token no longer visible</td><td>It expired, was cleared, or the page was reloaded/closed. Obtain another token; reload does not restore one.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </main>
+  <footer class="dl-footer">
+    <a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a>
+    <a href="https://dliu.com">dliu.com</a> &middot; <a href="/docs">Docs</a>
+  </footer>
+</body>
+</html>

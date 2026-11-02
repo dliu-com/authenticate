@@ -1,0 +1,14 @@
+.token-intro { line-height: 1.6; }
+.auth-docs-button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.auth-docs-button svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.token-card { margin: 20px 0; }
+.token-card h2 { margin-top: 0; }
+.token-note { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+#sign-in { width: 100%; }
+#status { margin: 16px 0 0; min-height: 1.6em; font-size: 14px; line-height: 1.6; text-align: center; }
+.token-meta { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.token-meta dd { margin: 0; overflow-wrap: anywhere; }
+.token-label { display: block; margin: 20px 0 10px; font-size: 14px; }
+.token-field { display: block; height: 120px; resize: vertical; font-family: var(--dl-mono); line-height: 1.6; overflow-wrap: anywhere; }
+.token-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+@media (max-width: 480px) { .token-meta { grid-template-columns: 1fr; } }
