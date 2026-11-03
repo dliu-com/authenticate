@@ -1,7 +1,8 @@
 # Auth anonymous guest checks
 
 This is the complete technical reference for testing https://auth.dliu.com as
-an anonymous guest. The human version is https://auth.dliu.com/docs/health.
+an anonymous guest. The human version is the Testing tab at https://auth.dliu.com/docs#health.
+The old `/docs/health` and `/docs/health/` URLs return 301 with `Location: /docs#health`.
 It is separate from https://auth.dliu.com/docs/api, which documents credentials
 for signed-in managed APIs. Never acquire or use a token for these checks.
 

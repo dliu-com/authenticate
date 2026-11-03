@@ -1,4 +1,4 @@
-const sections = ['architecture', 'cost', 'security', 'api'];
+const sections = ['architecture', 'cost', 'security', 'api', 'health'];
 const links = [...document.querySelectorAll('.dl-tabs a')];
 
 function showSection() {

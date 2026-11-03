@@ -9,7 +9,7 @@ const ICON = `${BASE}favicon.png`;
 const pages = (await readdir(new URL('../web/', import.meta.url))).filter((name) => name.endsWith('.html'));
 
 test('every page uses shared CSS, the original Auth brand/favicon and the footer DL logo, including the OAuth bridge', async () => {
-  assert.deepEqual(pages.sort(), ['docs.html', 'health.html', 'index.html', 'redirect.html']);
+  assert.deepEqual(pages.sort(), ['docs.html', 'index.html', 'redirect.html']);
   for (const name of pages) {
     const html = await source(`web/${name}`);
     assert.equal(await source(`build/web/${name}`), html);
@@ -39,7 +39,7 @@ test('docs use the shared docs stylesheet, tabs and diagram text without a copie
   assert(html.indexOf('ui/v1/dl.css') < html.indexOf('ui/v1/dl-docs.css'));
   assert(html.includes('<main class="dl-main dl-docs-main">'));
   assert(html.includes('<nav class="dl-tabs" aria-label="Docs sections">'));
-  assert.equal([...html.matchAll(/class="dl-docs"/g)].length, 4);
+  assert.equal([...html.matchAll(/class="dl-docs"/g)].length, 5);
   assert.doesNotMatch(html, /class="dg-(?:node|step)"><strong>/);
   assert((await source('web/docs.js')).includes("querySelectorAll('.dl-tabs a')"));
   for (const path of ['web/docs.css', 'build/web/docs.css']) {
@@ -68,7 +68,7 @@ test('shared styles own the palette and components; auth CSS is token-console la
 });
 
 test('shared UI adds no JavaScript and preserves the local MSAL bridge entry point', async () => {
-  const expected = { 'index.html': ['/app.js'], 'docs.html': ['/docs.js'], 'redirect.html': ['/redirect.js'], 'health.html': [] };
+  const expected = { 'index.html': ['/app.js'], 'docs.html': ['/docs.js'], 'redirect.html': ['/redirect.js'] };
   for (const name of pages) {
     const html = await source(`web/${name}`);
     assert.deepEqual([...html.matchAll(/<script\b[^>]*src="([^"]+)"/g)].map((match) => match[1]), expected[name]);

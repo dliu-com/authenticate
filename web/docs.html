@@ -29,6 +29,7 @@
       <a href="#cost">Cost</a>
       <a href="#security">Security</a>
       <a href="#api">API</a>
+      <a href="#health">Testing</a>
     </nav>
     <article id="architecture" class="dl-docs">
       <h2>How it works</h2>
@@ -97,7 +98,7 @@
         and enforce the shared API role and its own scopes. This does not change the sites' ordinary website
         sign-in or make a token for Microsoft Graph valid for these APIs.</p>
       <p>For public availability monitoring without sign-in or tokens, see
-        <a href="/docs/health">Guest checks</a> and its full machine-readable reference.
+        <a href="/docs#health">Testing</a> and its full machine-readable reference.
         Guest monitoring is separate from authenticated API use.</p>
       <p>Release builds load shared public OAuth metadata from the central
         <code>/dliu/entra-tenant-id</code> and <code>/dliu/api-app-id</code> SSM String
@@ -523,6 +524,94 @@ PY</code></pre>
           </tbody>
         </table>
       </div>
+    </article>
+    <article id="health" class="dl-docs">
+      <h2>Can visitors use Auth?</h2>
+      <p class="lead">The status checker visits like any other guest. It checks that the token
+        page and its sign-in preparation are available, without signing in, generating a
+        token or opening your saved files.</p>
+      <figure class="dg">
+        <figcaption>How the guest check works</figcaption>
+        <div class="dg-flow">
+          <div class="dg-step"><div class="dg-text"><strong>Status visits as a guest</strong><small>No account or token is used.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>Check the public page and sign-in preparation</strong><small>Check small pages and the availability of their scripts.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>Show the result</strong><small>Available, slow or unavailable. This is not a completed sign-in test.</small></div></div>
+        </div>
+        <p class="dg-good">Available: the public checks respond as expected.</p>
+        <p class="dg-warn">Degraded: a check is slow or a run fails; retry before concluding the site is down.</p>
+        <p class="dg-bad">Down: a critical function fails in two consecutive runs.</p>
+      </figure>
+      <h2>What is checked</h2>
+      <ul>
+        <li data-health-function="pages"><strong>Token page:</strong> visitors can open the page; without it, they cannot start.</li>
+        <li data-health-function="runtime"><strong>Page controls:</strong> the browser program is available; without it, sign-in and export controls cannot run.</li>
+        <li data-health-function="configuration"><strong>Sign-in setup:</strong> the public setup is present; without it, the page disables sign-in.</li>
+        <li data-health-function="signin"><strong>Sign-in return page:</strong> the popup's return page and program are available; without them, sign-in may not finish.</li>
+        <li data-health-function="documentation"><strong>Help pages:</strong> visitors can reach the instructions; missing help does not by itself mean token issuance is down.</li>
+      </ul>
+      <h2>No application health service</h2>
+      <p>Auth is a static website. It has no application backend or separate health endpoint,
+        and these checks do not add one. Deployment helpers are not a token-processing service.</p>
+      <h2>What a guest cannot test</h2>
+      <p>A guest cannot prove that a particular Microsoft account can sign in, pass MFA or
+        receive API permissions. The checker does not test real token generation, actual
+        token lifetime, clipboard or saved-file operations, or another app's API access.</p>
+      <p><a href="/docs/health.md">Full technical version (Markdown)</a></p>
+      <details>
+        <summary>Functions and public request checks</summary>
+        <p>Use anonymous GET or HEAD requests only, without cookies, Authorization, request
+          bodies or redirects. Match the media type before any semicolon; charset parameters
+          are permitted. A HEAD response has no body marker.</p>
+        <div class="table-wrap">
+          <table id="health-functions">
+            <thead><tr><th>Key</th><th>Name</th><th>Critical</th></tr></thead>
+            <tbody>
+              <tr><td>pages</td><td>Token page</td><td>yes</td></tr>
+              <tr><td>runtime</td><td>Page controls</td><td>yes</td></tr>
+              <tr><td>configuration</td><td>Sign-in setup</td><td>yes</td></tr>
+              <tr><td>signin</td><td>Sign-in return page</td><td>yes</td></tr>
+              <tr><td>documentation</td><td>Help pages</td><td>no</td></tr>
+            </tbody>
+          </table>
+          <table id="health-checks">
+            <thead><tr><th>Function</th><th>Method</th><th>URL</th><th>Status</th><th>Media type</th><th>Body marker or rule</th><th>Slow ms</th></tr></thead>
+            <tbody>
+              <tr><td>pages</td><td>GET</td><td>https://auth.dliu.com/</td><td>200</td><td>text/html</td><td>Sign in. Get your token.</td><td>2000</td></tr>
+              <tr><td>runtime</td><td>HEAD</td><td>https://auth.dliu.com/app.js</td><td>200</td><td>text/javascript</td><td>-</td><td>2000</td></tr>
+              <tr><td>configuration</td><td>GET</td><td>https://auth.dliu.com/config.json</td><td>200</td><td>application/json</td><td>configured=true</td><td>2000</td></tr>
+              <tr><td>signin</td><td>GET</td><td>https://auth.dliu.com/redirect.html</td><td>200</td><td>text/html</td><td>src="/redirect.js"</td><td>2000</td></tr>
+              <tr><td>signin</td><td>HEAD</td><td>https://auth.dliu.com/redirect.js</td><td>200</td><td>text/javascript</td><td>-</td><td>2000</td></tr>
+              <tr><td>documentation</td><td>HEAD</td><td>https://auth.dliu.com/docs</td><td>200</td><td>text/html</td><td>-</td><td>2000</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The configuration check also requires GUID-shaped tenantId, clientId and audience,
+          with clientId equal to audience. Those are public OAuth identifiers, not credentials.
+          Do not log their values. This checks shape, not live Entra consent or assignment.</p>
+        <p>The old /docs/health and /docs/health/ human URLs return 301 with
+          Location: /docs#health. The Markdown URL remains /docs/health.md.</p>
+      </details>
+      <details>
+        <summary>Timing, caching, safety and optional Microsoft discovery</summary>
+        <p>Run every 15 minutes using dliu-status-bot/1.0 (+https://status.dliu.com/docs).
+          Request sequentially, with a five-second timeout and a 64 KiB limit on GET bodies.
+          Retry a failed check once; mark a function down only after two failed runs.
+          A response taking more than 2000 ms is a warning, not proof of total failure.</p>
+        <p>Auth responses remain Cache-Control: no-store, max-age=0; CloudFront caching is
+          disabled. Do not add a cached /health route, write probe, load test, bucket listing
+          or authenticated request. HEAD checks avoid repeatedly downloading large scripts
+          and documentation. These six small checks add no backend; the Status app must
+          enforce its overall monthly budget, rather than assuming free account allowances.</p>
+        <p>Optional upstream discovery: read tenantId from the validated public config, then
+          GET https://login.microsoftonline.com/&lt;tenantId&gt;/v2.0/.well-known/openid-configuration.
+          Allow only that Microsoft host and GUID-shaped tenant value. Expect HTTP 200,
+          application/json, issuer equal to https://login.microsoftonline.com/&lt;tenantId&gt;/v2.0,
+          and an authorization_endpoint on login.microsoftonline.com. This public discovery
+          request uses no Graph call, login or token. It is not part of the six scheduled
+          site checks and does not prove account access or successful token issuance.</p>
+      </details>
     </article>
   </main>
   <footer class="dl-footer">

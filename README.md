@@ -93,7 +93,7 @@ export; existing credential files cannot gain new claims.
 ### Site documentation
 
 `/docs` and `/docs/` serve the static documentation page, using the shared
-horizontal tabs: Technical architecture, Cost, Security and API.
+horizontal tabs: Technical architecture, Cost, Security, API and Testing.
 `/docs/api` and `/docs/api/` open the shared authentication reference directly:
 token acquisition/export, default `~/.dliu_token` credentials, expiry checks
 and bearer-token transport. App-specific endpoints, schemas and scopes belong
@@ -101,8 +101,9 @@ to each app's API guide; those guides link here for authentication.
 All sections remain readable without JavaScript; local JavaScript enhances them
 with hash-linked navigation. A narrowly scoped CloudFront Function rewrites only
 these four paths to `/docs.html`, leaving the OAuth bridge and all other paths
-unchanged. `/docs/health` and `/docs/health/` instead serve the standalone
-anonymous guest-check page; `/docs/health.md` serves its full unfolded technical
+unchanged. The **Testing** tab at `/docs#health` contains the human guest-check
+guide; `/docs/health` and `/docs/health/` return 301 with `Location: /docs#health`.
+`/docs/health.md` serves its full unfolded technical
 reference as `text/markdown; charset=utf-8`. The two representations are guarded
 against function/check drift. No `/health` backend is created. All scripts remain same-origin.
 

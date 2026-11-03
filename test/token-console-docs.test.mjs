@@ -16,10 +16,15 @@ test('documentation rewrites only its clean URLs, preserving the OAuth bridge an
     const request = { uri, headers: {}, querystring: { example: { value: 'unchanged' } } };
     const event = { request };
     const returned = runInNewContext(`${script}\nhandler(event);`, { event });
-    assert.equal(returned, request);
-    assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : health.includes(uri)
-      ? '/health.html' : uri === '/docs/health.md' ? '/health.md' : uri);
-    assert.deepEqual(returned.querystring, { example: { value: 'unchanged' } });
+    if (health.includes(uri)) {
+      assert.equal(returned.statusCode, 301);
+      assert.equal(returned.headers.location.value, '/docs#health');
+      assert.equal(returned.headers['cache-control'].value, 'no-store, max-age=0');
+    } else {
+      assert.equal(returned, request);
+      assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : uri === '/docs/health.md' ? '/health.md' : uri);
+    }
+    assert.deepEqual(request.querystring, { example: { value: 'unchanged' } });
   }
 });
 
@@ -33,9 +38,9 @@ test('docs use shared styles and local section navigation, with a readable no-Ja
   assert.doesNotMatch(index, /name="permission"|type="checkbox"|Choose API permissions/);
   assert.match(html, /All integrated site API scopes are requested automatically/);
   assert.deepEqual([...html.matchAll(/<article id="([^"]+)" class="dl-docs">/g)].map((match) => match[1]),
-    ['architecture', 'cost', 'security', 'api']);
+    ['architecture', 'cost', 'security', 'api', 'health']);
   assert.deepEqual([...html.matchAll(/<a href="#([^"]+)">([^<]+)<\/a>/g)].map((match) => match[2]),
-    ['Technical architecture', 'Cost', 'Security', 'API']);
+    ['Technical architecture', 'Cost', 'Security', 'API', 'Testing']);
   assert.doesNotMatch(html, /<article[^>]*hidden|<style|style=|\son\w+=|<script(?![^>]*\bsrc=)/);
   for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
     assert.match(match[1], /^(?:\/|#|https:\/\/)/);
@@ -258,6 +263,9 @@ test('section links support direct hashes, switching, history changes and safe u
   window.location.hash = '#cost';
   handlers.get('hashchange')();
   check('cost', 'Cost');
+  window.location.hash = '#health';
+  handlers.get('hashchange')();
+  check('health', 'Testing');
   window.location.hash = '#<script>untrusted</script>';
   handlers.get('hashchange')();
   check('architecture', 'Technical architecture');
@@ -270,4 +278,8 @@ test('section links support direct hashes, switching, history changes and safe u
   window.location.hash = '#security';
   handlers.get('hashchange')();
   check('security', 'Security');
+  window.location.pathname = '/docs';
+  window.location.hash = '#health';
+  handlers.get('hashchange')();
+  check('health', 'Testing');
 });
