@@ -23,10 +23,10 @@ deployment and live verification remain separate release requirements.
 - MSAL token caching is explicitly disabled for access, ID and refresh tokens,
   with memory-only storage as a second boundary. Its cache is cleared immediately
   after each acquisition, including errors.
-- The access token remains in the current page's JavaScript memory until Clear,
-  reload/navigation, closing the page or Microsoft's actual expiry. Copying,
+- The access token remains in the current page's JavaScript memory until
+  reload/navigation, closing the page, starting another sign-in or Microsoft's actual expiry. Copying,
   saving, cancellation, failure and switching tabs do not discard it. Repeated
-  exports use temporary snapshots; Clear or expiry cancels pending exports.
+  exports use temporary snapshots; replacing the token, leaving the page or expiry cancels pending exports.
   Reloading cannot restore the token because there is no durable browser cache.
 - The page does not store tokens in cookies, local storage, session storage,
   IndexedDB, server files, logs or a database. MSAL may use session storage for
@@ -45,14 +45,15 @@ deployment and live verification remain separate release requirements.
   `expires_at=` lines, using Microsoft's reported UTC expiry, never an ID/refresh
   token. The site does not retain file handles, upload the file, or set POSIX
   permissions; users can apply `chmod 600 ~/.dliu_token` locally. Pending save
-  prompts are cancelled on Clear, expiry or navigation; an operation already committing may
+  prompts are cancelled on a new sign-in, expiry or navigation; an operation already committing may
   finish and cannot be undone by clearing the page. Exported files deliberately
   persist on the user's device and are not a browser token cache.
 - **Copy token file** copies the same complete `token=` / `expires_at=` record
-  as Save file, including Microsoft's actual UTC expiry. **Copy token** remains
-  a separate raw-bearer action. Both can be repeated while the page's token is
-  valid, use temporary export snapshots, and never write a personal file or
-  upload the token. Clipboard copies remain outside the page's clearing boundary.
+  as **Save file**, including Microsoft's actual UTC expiry. These are the only
+  two token-panel actions; there is no raw-token copy or manual Clear button.
+  Both can be repeated while the token is valid and use temporary export snapshots.
+  Copying never writes a local file; neither action uploads the token.
+  Clipboard copies remain outside the page's clearing boundary.
 - Clearing the page or MSAL cache does **not** revoke an issued token or end
   Microsoft's own browser sign-in session. A compromised page can steal a token
   while acquiring/displaying it, and may attempt SSO from an existing Microsoft
@@ -142,6 +143,47 @@ renamed files, tracked content and remote history still need review.
 The home and Docs headers expose one labeled Docs button with a decorative
 document icon. The Docs page marks it current; the home page does not. The
 existing footer shortcut is preserved, without adding duplicate header items.
+
+### Bounded production security review
+
+The Security docs record the 2026-11-03 threat model, assets/actors/data flows,
+STRIDE per component and dated expected/actual production check table.
+The approved run used 42 unauthenticated GET/HEAD/OPTIONS requests at least
+500 ms apart and three TLS handshakes, plus read-only AWS configuration reads.
+It did not use real credentials, acquire tokens, mutate data, stress services
+or change Entra. Hidden/source paths and unsigned S3 access were rejected;
+query/header canaries did not alter static content or enable redirects/CORS;
+live cache/security headers and private-origin configuration matched policy.
+
+CloudFront's service hostname intentionally serves the same public static
+site with the same protections. Private S3 is the origin boundary. Access
+logging, a Web ACL and S3 versioning were not enabled in the inspected setup.
+Public request traffic can still cost money: no denial-of-wallet test or hard
+spending cap is claimed. Logging, budgets, alarms or rate controls need an
+explicit cost/privacy decision before enabling them.
+
+The static site cannot establish a consuming API's JWT enforcement or current
+Entra assignment/consent. Real OAuth replay/account tests and any Entra changes
+remain separate, explicitly authorized work. Local synthetic tests are not
+live production evidence. Reproduction scripts and raw AWS details are kept
+in private review artifacts; never commit account-specific discovery output,
+tokens or full response bodies to this public repository.
+
+Source/history coverage was 43 tracked files, eight intentional working diffs,
+one local root commit and all 43 local Git blobs. Manual inspection and an
+inline heuristic secret scan found no real secret/private-identity exposure;
+gitleaks was unavailable. Remote-only history, forks/artifacts and arbitrary
+encoded secrets are not covered by that claim. The reviewer ran 75 selected
+tests and 135 additional in-memory SDK/console case groups; the final full
+build/test run separately passed all 79 registered tests, including synthesis
+and publication-ignore coverage.
+
+Production-only and full dependency audits both reported two moderate package
+records for the single unresolved minimatch/CDK advisory and no high/critical
+advisory. CDK, AWS SDK, jose and the historical broker are absent from the
+browser bundle. Fresh tarball provenance, real OAuth/Entra behavior and
+publisher/CI controls were not independently verified. Generated helper IAM
+wildcards are disclosed, not misrepresented as public role-assumption access.
 
 ### Shared dliu.com appearance
 

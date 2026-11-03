@@ -5,10 +5,8 @@ import {
 } from './token-console.mjs';
 
 const signIn = document.querySelector('#sign-in');
-const copy = document.querySelector('#copy');
 const copyFile = document.querySelector('#copy-file');
 const save = document.querySelector('#save');
-const clear = document.querySelector('#clear');
 const status = document.querySelector('#status');
 const tokenPanel = document.querySelector('#token-panel');
 const tokenField = document.querySelector('#token');
@@ -19,7 +17,6 @@ let generation = 0;
 let hasToken = false;
 let activeExports = 0;
 function updateExportButtons() {
-  copy.disabled = !hasToken || activeExports > 0;
   copyFile.disabled = !hasToken || activeExports > 0;
   save.disabled = !hasToken || activeExports > 0;
 }
@@ -51,11 +48,6 @@ window.addEventListener('pagehide', () => {
   generation++;
   display.clear();
 });
-clear.addEventListener('click', () => {
-  display.clear();
-  status.textContent = 'Token cleared. Copies remain valid until expiry.';
-});
-
 function checkFileExport(value, signal) {
   if (signal.aborted) throw new DOMException('File export cancelled.', 'AbortError');
   if (value.expiresOn.getTime() <= Date.now()) throw new Error('The access token expired before saving.');
@@ -120,32 +112,24 @@ save.addEventListener('click', async () => {
     updateExportButtons();
   }
 });
-async function copyToClipboard(fileContents) {
+copyFile.addEventListener('click', async () => {
   const request = generation;
   activeExports++;
   updateExportButtons();
   try {
-    const write = (value) => navigator.clipboard.writeText(value);
-    if (fileContents) await display.copyFile(write);
-    else await display.copy(write);
+    await display.copyFile((value) => navigator.clipboard.writeText(value));
     if (request === generation && display.refresh()) {
-      status.textContent = fileContents
-        ? 'Token file copied: token and UTC expiry. Paste it into .dliu_token.'
-        : 'Copied. You can copy or save this token again.';
+      status.textContent = 'Token file copied: token and UTC expiry. Paste it into .dliu_token.';
     }
   } catch {
     if (request === generation && display.refresh()) {
-      status.textContent = fileContents
-        ? 'The token file could not be copied. Your token is still available to try again.'
-        : 'Your token could not be copied. It is still available to try again.';
+      status.textContent = 'The token file could not be copied. Your token is still available to try again.';
     }
   } finally {
     activeExports--;
     updateExportButtons();
   }
-}
-copy.addEventListener('click', () => copyToClipboard(false));
-copyFile.addEventListener('click', () => copyToClipboard(true));
+});
 signIn.addEventListener('click', async () => {
   if (busy || !client) return;
   display.clear();

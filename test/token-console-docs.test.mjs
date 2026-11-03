@@ -54,11 +54,17 @@ test('home keeps sign-in and export simple while technical details stay in Docs'
   assert.match(html, /href="\/docs"/);
   assert.match(html, /Save or copy whenever you need it/);
   assert.match(html, /Keep your token private/);
-  assert.match(html, /until cleared, closed or expired/);
+  assert.doesNotMatch(html, /Kept on this page until cleared, closed or expired\./);
   assert.match(html, /~\/\.dliu_token/);
-  for (const id of ['sign-in', 'status', 'token-panel', 'token', 'expires', 'save', 'copy-file', 'copy', 'clear']) {
+  for (const id of ['sign-in', 'status', 'token-panel', 'token', 'expires', 'save', 'copy-file']) {
     assert(html.includes(`id="${id}"`), `Missing home control: ${id}`);
   }
+  const actions = html.match(/<div class="token-actions">([\s\S]*?)<\/div>/)[1];
+  assert.deepEqual([...actions.matchAll(/<button id="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
+    .map(([, id, label]) => ({ id, label })), [
+    { id: 'save', label: 'Save file' }, { id: 'copy-file', label: 'Copy token file' },
+  ]);
+  assert.doesNotMatch(html, /id="(?:copy|clear)"/);
   assert.doesNotMatch(html, /Microsoft Entra|configured site API permissions|Returned scopes|Authorization:|local storage|session storage|compromised page|24-hour|granted-scopes|API Gateway/i);
 });
 
@@ -146,6 +152,31 @@ test('Auth API docs own credential lookup and transport without duplicating app 
   assert.match(api, /Authorization: Bearer/);
   assert.match(api, /https:\/\/video\.dliu\.com\/docs\/api/);
   assert.doesNotMatch(api, /Video route permissions|POST \/api\/|GET \/api\/me|GET \/api\/videos/);
+});
+
+test('security docs separate bounded live evidence, operational risks and untested identity boundaries', async () => {
+  const text = (await source('web/docs.html')).replace(/\s+/g, ' ');
+  for (const required of [
+    'Assets, actors and trust boundaries',
+    'STRIDE by component',
+    'denial of wallet',
+    'Bounded production penetration checks: 2026-11-03',
+    '42 unauthenticated GET/HEAD/OPTIONS requests',
+    '500 ms apart',
+    'Expected</th><th>Actual (2026-11-03 UTC)',
+    '12 hidden/source paths',
+    'Unsigned direct S3',
+    'not server-only proof',
+    'Not tested live:',
+    'No Entra settings were changed',
+    'not assume public static hosting has a hard spending cap',
+    'Code, history and dependency review: 2026-11-03',
+    'all 43 tracked files',
+    'Gitleaks was unavailable',
+    '135 additional in-memory',
+    'two moderate affected-package records for the same',
+    'not fixes silently applied by this review',
+  ]) assert(text.includes(required), `Missing comprehensive security boundary: ${required}`);
 });
 
 test('docs explain why Auth needs neither periodic cache clearing nor S3 cache cleanup', async () => {

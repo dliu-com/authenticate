@@ -127,25 +127,26 @@ function displayFixture() {
   };
 }
 
-test('copy can be repeated and retains the browser token, including failed writes', async () => {
+test('complete token-file copying can be repeated and retains the token, including failed writes', async () => {
   for (const failure of [false, true]) {
     const f = displayFixture();
-    f.display.show(result());
-    const copying = f.display.copy(async (value) => {
-      assert.equal(value, 'synthetic-access-token');
+    const original = result();
+    f.display.show(original);
+    const copying = f.display.copyFile(async (value) => {
+      assert.equal(value, formatTokenFile(original));
       assert.equal(f.view().accessToken, 'synthetic-access-token');
       if (failure) throw new Error('clipboard denied');
     });
     if (failure) await assert.rejects(copying, /clipboard denied/);
     else await copying;
     let copied;
-    await f.display.copy(async (value) => { copied = value; });
-    assert.equal(copied, 'synthetic-access-token');
-    assert.equal(f.view().accessToken, copied);
+    await f.display.copyFile(async (value) => { copied = value; });
+    assert.equal(copied, formatTokenFile(original));
+    assert.equal(f.view().accessToken, original.accessToken);
   }
 });
 
-test('copying the token file repeats the complete saved format without changing raw-token copying', async () => {
+test('copying the token file repeats the same complete format as saving', async () => {
   const f = displayFixture();
   const original = result();
   const expected = `token=${original.accessToken}\nexpires_at=${original.expiresOn.toISOString()}\n`;
@@ -157,9 +158,6 @@ test('copying the token file repeats the complete saved format without changing 
   let saved;
   await f.display.save(async (value) => { saved = formatTokenFile(value); });
   assert.equal(saved, expected);
-  let raw;
-  await f.display.copy(async (text) => { raw = text; });
-  assert.equal(raw, original.accessToken);
   assert.equal(f.view().accessToken, original.accessToken);
   await assert.rejects(f.display.copyFile(async () => {
     throw new Error('clipboard unavailable');
@@ -181,7 +179,7 @@ test('the browser token remains beyond one minute and clears at Microsoft expiry
   f.display.refresh();
   assert.equal(f.view(), null);
   assert.equal(f.reason(), 'expired');
-  await assert.rejects(f.display.copy(() => assert.fail('expired display')), /no longer available/);
+  await assert.rejects(f.display.copyFile(() => assert.fail('expired display')), /no longer available/);
 });
 
 test('actual Microsoft expiry limits display and copy even when the timer has not run', async () => {
@@ -189,7 +187,7 @@ test('actual Microsoft expiry limits display and copy even when the timer has no
   f.display.show({ ...result(), expiresOn: new Date(Date.now() + 500) });
   assert(f.delay() <= 500);
   f.advance(501);
-  await assert.rejects(f.display.copy(() => assert.fail('expired token')), /no longer available/);
+  await assert.rejects(f.display.copyFile(() => assert.fail('expired token')), /no longer available/);
   assert.equal(f.view(), null);
   assert.throws(() => f.display.show({ ...result(), expiresOn: new Date(NaN) }), /invalid/);
   assert.equal(f.view(), null);
@@ -201,7 +199,7 @@ test('explicit clear/navigation removes the token and prevents later copying', a
   f.display.clear();
   assert.equal(f.view(), null);
   assert.equal(f.reason(), 'cleared');
-  await assert.rejects(f.display.copy(() => assert.fail('hidden token')), /no longer available/);
+  await assert.rejects(f.display.copyFile(() => assert.fail('hidden token')), /no longer available/);
 });
 
 test('token file contains only the access token and actual UTC expiry', () => {
@@ -238,8 +236,8 @@ test('saving can be repeated and retains the token, including cancellation or fa
     await f.display.save(async (value) => { saved = formatTokenFile(value); });
     assert.equal(saved, formatTokenFile(original));
     let copied;
-    await f.display.copy(async (value) => { copied = value; });
-    assert.equal(copied, original.accessToken);
+    await f.display.copyFile(async (value) => { copied = value; });
+    assert.equal(copied, formatTokenFile(original));
     assert.equal(f.view().accessToken, original.accessToken);
   }
 });
@@ -247,7 +245,7 @@ test('saving can be repeated and retains the token, including cancellation or fa
 test('a copied token can be saved, but an expired token cannot', async () => {
   const copied = displayFixture();
   copied.display.show(result());
-  await copied.display.copy(async () => {});
+  await copied.display.copyFile(async () => {});
   await copied.display.save(async (value) => {
     assert.equal(value.accessToken, 'synthetic-access-token');
   });

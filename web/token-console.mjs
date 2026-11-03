@@ -140,9 +140,6 @@ export function createTokenDisplay({
       render({ ...result, hideAt: new Date(deadline) });
       scheduleExpiry();
     },
-    async copy(writeText) {
-      return exportSnapshot((value) => writeText(value.accessToken));
-    },
     async copyFile(writeText) {
       return exportSnapshot((value) => writeText(formatTokenFile(value)));
     },

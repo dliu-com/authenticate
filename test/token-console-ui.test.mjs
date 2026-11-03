@@ -35,10 +35,9 @@ class Element {
 let fixtureIndex = 0;
 async function fixture(t, { configured = true, acquire, clipboard, saveFilePicker } = {}) {
   const elements = new Map([
-    '#sign-in', '#copy', '#copy-file', '#save', '#clear', '#status', '#token-panel',
+    '#sign-in', '#copy-file', '#save', '#status', '#token-panel',
     '#token', '#expires',
   ].map((selector) => [selector, new Element()]));
-  elements.get('#copy').disabled = true;
   elements.get('#copy-file').disabled = true;
   elements.get('#save').disabled = true;
   const document = new Element();
@@ -138,23 +137,24 @@ test('simple UI retains the browser token for repeat copying and saving while cl
   assert.deepEqual(f.request().scopes, API_PERMISSIONS
     .map((scope) => `api://33333333-3333-4333-8333-333333333333/${scope}`));
   assert.deepEqual(f.request().storeInCache, { accessToken: false, idToken: false, refreshToken: false });
-  await f.element('copy').emit('click');
-  await f.element('copy').emit('click');
-  assert.deepEqual(written, ['synthetic-ui-token', 'synthetic-ui-token']);
+  await f.element('copy-file').emit('click');
+  await f.element('copy-file').emit('click');
+  const record = `token=synthetic-ui-token\nexpires_at=${expiresOn.toISOString()}\n`;
+  assert.deepEqual(written, [record, record]);
   assert.equal(f.element('token').value, 'synthetic-ui-token');
   assert.equal(f.element('token-panel').hidden, false);
-  assert.equal(f.element('copy').disabled, false);
+  assert.equal(f.element('copy-file').disabled, false);
   assert.equal(f.element('save').disabled, false);
   await f.element('save').emit('click');
   assert.equal(f.element('token').value, 'synthetic-ui-token');
-  await f.element('copy').emit('click');
+  await f.element('copy-file').emit('click');
   assert.equal(written.length, 3);
   assert.deepEqual(f.networkRequests, [{
     input: '/config.json', options: { cache: 'no-store', credentials: 'omit' },
   }]);
 });
 
-test('Copy token file copies token and UTC expiry, keeps raw copy separate and never uploads credentials', async (t) => {
+test('Copy token file copies token and UTC expiry without extra actions or credential uploads', async (t) => {
   const written = [];
   const expiresOn = new Date(Date.now() + 3_600_000);
   const f = await fixture(t, {
@@ -168,15 +168,15 @@ test('Copy token file copies token and UTC expiry, keeps raw copy separate and n
   const record = `token=synthetic-complete-file\nexpires_at=${expiresOn.toISOString()}\n`;
   assert.deepEqual(written, [record, record]);
   assert.match(f.element('status').textContent, /token and UTC expiry/);
-  await f.element('copy').emit('click');
-  assert.equal(written[2], 'synthetic-complete-file');
+  assert.equal(f.element('copy'), undefined);
+  assert.equal(f.element('clear'), undefined);
   assert.equal(f.element('token').value, 'synthetic-complete-file');
   assert.equal(f.element('copy-file').disabled, false);
   assert.equal(f.element('save').disabled, false);
   assert.deepEqual(f.networkRequests, [{
     input: '/config.json', options: { cache: 'no-store', credentials: 'omit' },
   }]);
-  await f.element('clear').emit('click');
+  await f.window.emit('pagehide');
   assert.equal(f.element('copy-file').disabled, true);
   assert.equal(f.element('token').value, '');
 });
@@ -212,7 +212,6 @@ test('a pending token-file clipboard write cannot replace a newer sign-in status
   await f.element('sign-in').emit('click');
   const copying = f.element('copy-file').emit('click');
   assert.equal(f.element('copy-file').disabled, true);
-  assert.equal(f.element('copy').disabled, true);
   assert.equal(f.element('save').disabled, true);
   await f.element('sign-in').emit('click');
   finish();
@@ -231,7 +230,7 @@ test('UI retains a displayed token across tab switches', async (t) => {
   f.document.visibilityState = 'visible';
   await f.document.emit('visibilitychange');
   assert.equal(f.element('token').value, 'synthetic-ui-token');
-  assert.equal(f.element('copy').disabled, false);
+  assert.equal(f.element('copy-file').disabled, false);
 });
 
 test('UI discards sign-in responses when the page navigated away', async (t) => {
@@ -252,7 +251,7 @@ test('UI discards sign-in responses when the page navigated away', async (t) => 
 test('UI reports sign-in and clipboard failures without reflecting raw diagnostics', async (t) => {
   const f = await fixture(t, { clipboard: async () => { throw new Error('SENSITIVE-DIAGNOSTIC'); } });
   await f.element('sign-in').emit('click');
-  await f.element('copy').emit('click');
+  await f.element('copy-file').emit('click');
   assert.equal(f.element('token').value, 'synthetic-ui-token');
   assert(!f.element('status').textContent.includes('SENSITIVE-DIAGNOSTIC'));
   assert.match(f.element('status').textContent, /could not be copied/);
@@ -314,7 +313,7 @@ test('Save file opens the native prompt synchronously and writes token plus actu
   await saving;
   assert.equal(content, `token=synthetic-file-token\nexpires_at=${expiresOn.toISOString()}\n`);
   assert.equal(closed, true);
-  assert.equal(f.element('copy').disabled, false);
+  assert.equal(f.element('copy-file').disabled, false);
   assert.equal(f.element('save').disabled, false);
   assert.equal(f.element('token').value, 'synthetic-file-token');
   assert.match(f.element('status').textContent, /^Saved\./);
@@ -452,22 +451,27 @@ test('a save still choosing a destination cannot overwrite a newer sign-in state
   assert.equal(f.element('save').disabled, false);
 });
 
-test('explicit Clear cancels a pending save and prevents further exports', async (t) => {
+test('expiry cancels a pending save and prevents further exports without a Clear button', async (t) => {
   let resolvePicker;
   let opened = false;
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const expiresOn = new Date(now + 3_600_000);
   const f = await fixture(t, {
+    acquire: async () => ({ accessToken: 'synthetic-expiring-token', expiresOn, scopes: ['video.read'] }),
     saveFilePicker: () => new Promise((resolve) => { resolvePicker = resolve; }),
   });
   await f.element('sign-in').emit('click');
   const saving = f.element('save').emit('click');
-  await f.element('clear').emit('click');
+  now = expiresOn.getTime();
+  await f.document.emit('visibilitychange');
   resolvePicker({ async createWritable() { opened = true; } });
   await saving;
   assert.equal(opened, false);
   assert.equal(f.element('token').value, '');
-  assert.equal(f.element('copy').disabled, true);
+  assert.equal(f.element('copy-file').disabled, true);
   assert.equal(f.element('save').disabled, true);
-  assert.match(f.element('status').textContent, /Token cleared/);
+  assert.match(f.element('status').textContent, /Token expired/);
 });
 
 test('closing or navigating the page clears its token and cancels pending saves', async (t) => {
@@ -483,7 +487,7 @@ test('closing or navigating the page clears its token and cancels pending saves'
   await saving;
   assert.equal(opened, false);
   assert.equal(f.element('token').value, '');
-  assert.equal(f.element('copy').disabled, true);
+  assert.equal(f.element('copy-file').disabled, true);
 });
 
 test('sign-in can complete in the current hidden tab without creating a durable cache', async (t) => {

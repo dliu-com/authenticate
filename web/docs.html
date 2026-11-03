@@ -39,7 +39,7 @@
       <div class="dg-stats">
         <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span><div class="dg-text"><strong>1 token issuer</strong><small>Microsoft Entra ID, not this website</small></div></div>
         <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6h2M7 17h2"/></svg></span><div class="dg-text"><strong>0 auth backends</strong><small>Static files; no token API or session database</small></div></div>
-        <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div class="dg-text"><strong>Browser-only memory</strong><small>Reusable until cleared, the page closes or Microsoft expiry</small></div></div>
+        <div class="dg-stat"><span class="dg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><div class="dg-text"><strong>Browser-only memory</strong><small>Reusable until a new sign-in, leaving the page or Microsoft expiry</small></div></div>
       </div>
       <figure class="dg">
         <figcaption>Components and trust boundaries</figcaption>
@@ -160,7 +160,7 @@
         ID and refresh tokens. The SDK cache is cleared immediately after acquisition, including
         on failure. Only the access token is displayed or exported.</p>
       <p>The token stays in the current page's JavaScript memory after saving, copying or switching
-        tabs. Clear, reload, navigation, closing the page or Microsoft expiry removes it from this
+        tabs. Reload, navigation, closing the page, starting another sign-in or Microsoft expiry removes it from this
         page. It does not save tokens in cookies, local storage,
         session storage, IndexedDB, a backend or logs. MSAL may use session storage for temporary
         OAuth transaction metadata. JavaScript memory is not guaranteed to be forensically erased.</p>
@@ -197,6 +197,19 @@
         a password or signing secret. Knowing them does not let the attacker forge Microsoft's
         token signature or grant themselves an API role. Security must come from verified
         tokens and explicit authorization, not hidden source code or undisclosed endpoints.</p>
+      <h3>Assets, actors and trust boundaries</h3>
+      <p>The protected assets are the Microsoft access token, its saved or clipboard exports,
+        the integrity of the token page and its dependencies, the private origin, deployment
+        permissions and the cloud bill. Actors include anonymous visitors, signed-in accounts
+        without API assignment, the assigned API operator, a stolen-token holder and a
+        compromised dependency or publisher. Website sign-in does not grant API assignment.</p>
+      <p>The browser fetches public static files through CloudFront and its signed S3 origin,
+        then communicates directly with Microsoft for authorization-code/PKCE token issuance.
+        The popup bridge is same-origin with the main page. The access token stays in that
+        page until expiry or cleanup; explicit copy/save moves a separate copy across the
+        browser-to-device boundary. A trusted tool later sends it to the intended API gateway.
+        Microsoft is the token issuer; Auth is a sensitive token-acquisition surface, not a
+        custom issuer or the APIs' final authorization boundary.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Attacker capability</th><th>Boundary and remaining risk</th></tr></thead>
@@ -209,6 +222,81 @@
           </tbody>
         </table>
       </div>
+      <h3>STRIDE by component</h3>
+      <p>STRIDE covers spoofing, tampering, repudiation, information disclosure, denial of
+        service and elevation of privilege. The following boundaries are not promises that
+        every attack is prevented.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Component and threats</th><th>Controls and residual risk</th></tr></thead>
+          <tbody>
+            <tr><td>Browser and popup: spoofing, tampering, disclosure, elevation</td><td>Fixed tenant/resource/callback, MSAL PKCE, state and nonce handling, same-origin bridge, same-origin scripts and restrictive CSP. Device, extension or trusted-page compromise can still capture the token or spoof the UI.</td></tr>
+            <tr><td>Clipboard and saved file: disclosure, tampering, repudiation</td><td>Explicit user action exports only token and actual expiry; no automatic upload or retained file handle. Plaintext exports can be stolen or changed. Local expiry metadata is not signature verification, and clearing the page cannot revoke external copies.</td></tr>
+            <tr><td>CloudFront and private S3: tampering, disclosure, denial of service</td><td>TLS, private signed origin, public-access blocking, no-store and disabled edge/error caching. The public CloudFront service hostname serves the same static site with the same protections. Availability and request charges remain exposed to anonymous traffic.</td></tr>
+            <tr><td>Dependencies, source and deployment helpers: tampering, elevation, denial of service</td><td>Reviewed source/history, lockfile integrity, no public scripts beyond same-origin bundles, scoped S3 deployment access and no application token backend. Compromised publishers can change future page code. CDK helper IAM includes generated wildcard service permissions that are not public visitor permissions.</td></tr>
+            <tr><td>Microsoft and managed API boundary: spoofing, replay, elevation</td><td>Microsoft issues the token; each consuming gateway/handler must enforce signature, issuer, audience, timestamps, client, assigned role and route scope. This static site's production probes do not prove another app's JWT enforcement or current Entra registration/assignment settings.</td></tr>
+            <tr><td>Monitoring and cloud bill: repudiation, denial of service, denial of wallet</td><td>CloudFront/S3 access logging and a Web ACL are not enabled in the inspected configuration. No load or billing-exhaustion tests were run. Budgets, alarms, rate controls and additional logging require a separate cost/privacy decision; do not assume public static hosting has a hard spending cap.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Bounded production penetration checks: 2026-11-03</h3>
+      <p>The approved run made 42 unauthenticated GET/HEAD/OPTIONS requests, spaced at least
+        500 ms apart, plus three TLS handshakes. No real token, sign-in, data mutation,
+        brute force or load test was used. The table records the observed deployment,
+        separately from local-source and synthetic tests.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Test</th><th>Expected</th><th>Actual (2026-11-03 UTC)</th></tr></thead>
+          <tbody>
+            <tr><td>Home, Docs aliases, scripts, styles and OAuth bridge</td><td>Only intended static assets; no-store and no credential-bearing redirect</td><td>HTTP 200; no-store; no Location header</td></tr>
+            <tr><td>Public configuration</td><td>Configured flag and public OAuth identifiers only</td><td>Exact four-field shape; no secret fields</td></tr>
+            <tr><td>12 hidden/source paths: .git, .env, source maps, manifests and backend source</td><td>No content exposure</td><td>All HTTP 403; no-store</td></tr>
+            <tr><td>Query/path injection canary and external return/redirect values</td><td>No reflected executable markup or external redirect</td><td>Queries returned unchanged static content; unknown path 403; no reflected canary or Location</td></tr>
+            <tr><td>Forged Origin, Forwarded and X-Forwarded-Host headers, then ordinary request</td><td>No response poisoning, redirect or permissive credential CORS</td><td>Home bytes unchanged; no-store; no allow-origin/allow-credentials headers</td></tr>
+            <tr><td>Cross-origin OPTIONS preflight</td><td>No credential CORS access</td><td>HTTP 403; no permissive CORS headers</td></tr>
+            <tr><td>Unimplemented API/broker/callback paths</td><td>No custom token broker or arbitrary callback route</td><td>HTTP 403; no redirect</td></tr>
+            <tr><td>CSP, framing, MIME, referrer, HSTS and popup compatibility</td><td>Self-only scripts, no inline/eval, framing denied, nosniff/no-referrer/HSTS, no COOP</td><td>Expected live headers present; HTTP/3 advertised</td></tr>
+            <tr><td>HTTP transport</td><td>Same-host HTTPS redirect</td><td>HTTP 301 to HTTPS</td></tr>
+            <tr><td>CloudFront service hostname</td><td>Same public static delivery protections, not an origin bypass</td><td>HTTP 200 with the same CSP and no-store policy</td></tr>
+            <tr><td>Unsigned direct S3 bucket/object and website endpoint</td><td>Private origin unavailable without CloudFront signing</td><td>Bucket/object HTTP 403; website endpoint HTTP 404</td></tr>
+            <tr><td>TLS versions and certificate</td><td>Valid hostname/certificate on TLS 1.2/1.3; reject older TLS</td><td>TLS 1.2/1.3 accepted; TLS 1.1 rejected by the client/server handshake. Live CloudFront policy also requires TLSv1.2_2021; the failed legacy handshake alone is not server-only proof.</td></tr>
+            <tr><td>Read-only AWS configuration</td><td>Private origin, restricted read grant, encryption, HTTPS and disabled caching</td><td>All four S3 public-access blocks on; nonpublic policy/ACL; AES256; HTTPS deny; OAC always signs; CloudFront GetObject grant distribution-scoped; cache max TTL and error TTL zero</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Not tested live:</strong> real OAuth state/nonce/code replay, account assignment,
+        consent, conditional access, token lifetime or JWT algorithm/issuer/audience/client/
+        role/scope acceptance at another app. Those are not executable authorization endpoints
+        on this static host. Synthetic local cases must not be presented as production proof.
+        No Entra settings were changed. Actual QUIC negotiation and latency improvement were
+        not measured.</p>
+      <h3>Code, history and dependency review: 2026-11-03</h3>
+      <p>The source review covered all 43 tracked files, the eight intentional working
+        diffs and the full local history: one root commit and all 43 local Git blobs.
+        No real credentials, bearer tokens, private keys, private email addresses or private
+        cloud-account identifiers were identified. Gitleaks was unavailable; the equivalent
+        review used manual file inspection and a heuristic scan for key/token/JWT formats,
+        credential URLs, assignments, entropy and identity metadata. This is not a guarantee
+        against arbitrary encoded secrets or remote-only history, forks and artifacts.</p>
+      <p>The reviewer ran 75 selected existing tests plus 135 additional in-memory
+        MSAL/console cases or check groups, including PKCE/S256, state/nonce rejection,
+        origin topology, bridge cleanup, cache suppression and malformed exports.
+        Separately, the final full build/test run passed 79 registered tests, including
+        infrastructure synthesis and the isolated publication-ignore regression.
+        The extra in-memory groups are not 135 separately registered tests or real
+        cross-browser OAuth transactions.</p>
+      <p>Both <code>npm audit --omit=dev</code> and the full audit, including development
+        dependencies, reported two moderate affected-package records for the same
+        minimatch advisory: minimatch and its CDK parent. No high or critical advisory
+        was reported. The browser build contains local code and MSAL packages, not CDK,
+        AWS SDK, jose or the retired broker. Registry integrity records were reviewed;
+        fresh provenance comparison against registry tarball bytes was not performed.</p>
+      <p>The read-only IAM review found only certificate and static-deployment helper
+        functions. S3 access is bucket-scoped; generated ACM/GetChange and CloudFront
+        invalidation permissions include wildcard resources. No anonymous helper-role
+        assumption or invocation path was demonstrated. Narrower helper privileges,
+        logging, rollback/versioning, publisher/CI protection and budgets are operational
+        follow-ups, not fixes silently applied by this review.</p>
       <h3>What threat-model tests can establish</h3>
       <p>Use synthetic credentials and isolated browser mocks to test configuration rejection,
         explicit scope requests, disabled SDK token caching, cache cleanup after failed
@@ -223,7 +311,7 @@
         exploitable issue or real secret in the reviewed publishable source snapshot.
         This was a local review, not a live penetration test, a dependency-advisory guarantee
         or clearance of future edits, remote Git history or other applications.</p>
-      <p>The dependency-advisory check on 2026-11-02 reported
+      <p>The dependency-advisory check on 2026-11-03 again reported
         <a href="https://github.com/advisories/GHSA-g3hv-75wg-m249" rel="noreferrer">a moderate
         denial-of-service advisory in minimatch</a>, bundled by the installed CDK library.
         This dependency is used by local deployment tooling, not the browser token console.
@@ -300,12 +388,12 @@
 expires_at=&lt;actual-expiry-in-UTC&gt;</code></pre>
       <p><strong>Copy token file</strong> copies this complete two-field record, including the
         actual UTC expiration time, for you to paste into <code>~/.dliu_token</code> as plain
-        text. <strong>Copy token</strong> copies only the access token for a trusted tool's
-        bearer-token field; it is not a complete credential file. Neither copy action writes
-        a local file or discards the valid token from this page.</p>
+        text. <strong>Save file</strong> and <strong>Copy token file</strong> are the only
+        token-panel actions. Copying does not write a local file, and neither action discards
+        the valid token from this page. Reload or close the page to remove its displayed token.</p>
       <p>The expiry comes from Microsoft's response, not a fixed 24-hour assumption. The file
         contains no ID token, refresh token or password. Saving, copying, cancellation or failure
-        leaves the valid token available for another attempt. Clear, expiry or leaving the page
+        leaves the valid token available for another attempt. A new sign-in, expiry or leaving the page
         cancels a save still waiting for a destination. An operation already committing to disk
         may finish; clearing the page cannot undo a saved file.</p>
       <div class="dg-callout"><strong>The file is plaintext.</strong> Keep it private and outside
@@ -423,7 +511,7 @@ PY</code></pre>
             <tr><td>Microsoft sign-in is unavailable</td><td>Site configuration, exact SPA redirect, popup blocking and administrator consent.</td></tr>
             <tr><td>Account not assigned</td><td>Entra enterprise application assignment and the required user role.</td></tr>
             <tr><td>401 or 403 from the managed API</td><td>Correct endpoint, expiry, Microsoft issuer/audience, approved client, required scopes and role. Do not use an ID token.</td></tr>
-            <tr><td>Token no longer visible</td><td>It expired, was cleared, or the page was reloaded/closed. Obtain another token; reload does not restore one.</td></tr>
+            <tr><td>Token no longer visible</td><td>It expired, another sign-in started, or the page was reloaded/closed. Obtain another token; reload does not restore one.</td></tr>
           </tbody>
         </table>
       </div>
