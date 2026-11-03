@@ -101,7 +101,20 @@ to each app's API guide; those guides link here for authentication.
 All sections remain readable without JavaScript; local JavaScript enhances them
 with hash-linked navigation. A narrowly scoped CloudFront Function rewrites only
 these four paths to `/docs.html`, leaving the OAuth bridge and all other paths
-unchanged. All scripts remain same-origin.
+unchanged. `/docs/health` and `/docs/health/` instead serve the standalone
+anonymous guest-check page; `/docs/health.md` serves its full unfolded technical
+reference as `text/markdown; charset=utf-8`. The two representations are guarded
+against function/check drift. No `/health` backend is created. All scripts remain same-origin.
+
+The guest reference follows `../status/HEALTH.md`: a shared diagram and plain
+function summaries for people, closed technical details and a Markdown link.
+Six anonymous GET/HEAD checks cover the page, script availability, public
+configuration, popup return assets and Docs. Large assets use HEAD; the Status
+app owns the overall monitoring budget. No credentials, writes, real OAuth,
+Graph calls or token-file operations are part of guest checks. Optional public
+Microsoft discovery is documented separately and is not proof of account access.
+The Markdown object has a deployment-only content-type override and no-store
+metadata; this is not an application backend or periodic health Lambda.
 
 ### Public-source threat model
 
@@ -231,8 +244,9 @@ The synthetic account is for offline synthesis only. All legacy broker source
 and tests are retained for recovery, but `cdk.json` points only to the new static
 site. Do not manually deploy `bin/authenticate.ts` or run `scripts/set-secrets.sh`.
 
-An unconfigured local build renders a setup error and disables sign-in. A release
-requires these non-secret values in the local environment, never committed:
+An unconfigured local build stays offline, renders a setup error and disables
+sign-in. Synthetic/local preview builds may use these non-secret environment
+values, never committed:
 
 ```sh
 AUTH_TENANT_ID=<directory-guid>
@@ -240,7 +254,28 @@ AUTH_CLIENT_ID=<browser-spa-client-guid>
 AUTH_API_AUDIENCE=<shared-api-resource-guid>
 ```
 
-The release build writes only those three IDs to ignored `build/web/config.json`.
+Release builds (`--require-config`, including `npm run deploy`) instead read
+the central Standard String parameters in **eu-west-1**:
+
+| Parameter | Public configuration field |
+| --- | --- |
+| `/dliu/entra-tenant-id` | `tenantId` |
+| `/dliu/api-app-id` | Both `clientId` and `audience` |
+
+These are owned by the shared Audit stack, not Auth. The deployment identity
+needs read-only `ssm:GetParameters` access to exactly those two names; the
+visitor, static site and deployed helper functions receive no new SSM permission.
+Reads do not decrypt parameters. Missing, invalid, duplicate, unexpected or
+non-String data fails the build with no local-environment or old-parameter
+fallback. Release builds ignore the three local-preview overrides above.
+Do not copy the shared identifiers into per-app parameters or tracked config.
+The retired broker's separate client/secret configuration is not the shared API.
+Its historical source still references its original tenant key, but it is not
+selected by the current CDK entry point or used by the static token console.
+Do not run the retired uploader or deploy that broker; any deliberate recovery
+must migrate its configuration and permissions to the central tenant first.
+
+The release build writes only those three public IDs to ignored `build/web/config.json`.
 **Browser OAuth necessarily makes these IDs public to visitors. They are public
 identifiers, not credentials.** No real IDs or personal/account details belong
 in tracked files. Deployment refuses missing or malformed configuration.
@@ -249,8 +284,8 @@ Before an explicitly approved deployment, confirm the configuration below.
 Checks requiring the published console or gateway follow deployment:
 
 1. Reuse the existing single-tenant **dliu API** registration as both resource and
-   browser client; set `AUTH_CLIENT_ID` and `AUTH_API_AUDIENCE` to that same
-   application ID. Add the exact **Single-page application** redirect
+   browser client; the central `/dliu/api-app-id` supplies that same ID as
+   both client and audience. Add the exact **Single-page application** redirect
    `https://auth.dliu.com/redirect.html`. Do not create another SPA registration.
    The native localhost CLI callback is not a substitute. No client secret,
    implicit grant or device-code flow is used.

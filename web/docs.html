@@ -96,6 +96,14 @@
       <p>A token can work across sites only after each API is configured to trust that same resource
         and enforce the shared API role and its own scopes. This does not change the sites' ordinary website
         sign-in or make a token for Microsoft Graph valid for these APIs.</p>
+      <p>For public availability monitoring without sign-in or tokens, see
+        <a href="/docs/health">Guest checks</a> and its full machine-readable reference.
+        Guest monitoring is separate from authenticated API use.</p>
+      <p>Release builds load shared public OAuth metadata from the central
+        <code>/dliu/entra-tenant-id</code> and <code>/dliu/api-app-id</code> SSM String
+        parameters in eu-west-1. The shared app ID supplies both clientId and audience.
+        These reads happen in the deployment process, not in the visitor's browser or
+        an Auth backend. No token, client secret or AWS credential is published.</p>
       <p class="source">Uses Microsoft's authorization-code flow with PKCE and MSAL Browser.
         Video's managed API has passed live read/write verification. Files, Blog and Trip planner
         require their own configuration, release and live API verification before use.</p>

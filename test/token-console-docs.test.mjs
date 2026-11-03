@@ -9,13 +9,16 @@ const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8'
 test('documentation rewrites only its clean URLs, preserving the OAuth bridge and API paths', async () => {
   const script = await source('lib/static-routes.js');
   const clean = ['/docs', '/docs/', '/docs/api', '/docs/api/'];
-  for (const uri of [...clean, '/', '/docs.html', '/docs.js', '/docs.css',
-    '/redirect.html', '/redirect.js', '/auth/callback', '/api/me', '/docs/unknown', '/docs//', '/docs/apis']) {
+  const health = ['/docs/health', '/docs/health/'];
+  for (const uri of [...clean, ...health, '/docs/health.md', '/', '/docs.html', '/docs.js', '/docs.css',
+    '/redirect.html', '/redirect.js', '/auth/callback', '/api/me', '/docs/unknown', '/docs//', '/docs/apis',
+    '/health', '/health/', '/docs/health.md/', '/docs/health//']) {
     const request = { uri, headers: {}, querystring: { example: { value: 'unchanged' } } };
     const event = { request };
     const returned = runInNewContext(`${script}\nhandler(event);`, { event });
     assert.equal(returned, request);
-    assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : uri);
+    assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : health.includes(uri)
+      ? '/health.html' : uri === '/docs/health.md' ? '/health.md' : uri);
     assert.deepEqual(returned.querystring, { example: { value: 'unchanged' } });
   }
 });

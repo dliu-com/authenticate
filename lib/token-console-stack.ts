@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { readFileSync } from 'fs';
 import {
   aws_certificatemanager as acm,
   aws_cloudfront as cloudfront,
@@ -88,13 +89,25 @@ export class TokenConsoleStack extends Stack {
         compress: true,
       },
     });
-    new deployment.BucketDeployment(this, 'Publish', {
+    const publish = new deployment.BucketDeployment(this, 'Publish', {
       sources: [deployment.Source.asset(path.join(__dirname, '../build/web'))],
+      exclude: ['health.md'],
       destinationBucket: bucket,
       distribution,
       distributionPaths: ['/*'],
       cacheControl: [deployment.CacheControl.noStore()],
     });
+    const healthReference = new deployment.BucketDeployment(this, 'PublishHealthReference', {
+      sources: [deployment.Source.data('health.md',
+        readFileSync(path.join(__dirname, '../build/web/health.md'), 'utf8'))],
+      destinationBucket: bucket,
+      prune: false,
+      contentType: 'text/markdown; charset=utf-8',
+      cacheControl: [deployment.CacheControl.noStore()],
+      distribution,
+      distributionPaths: ['/docs/health.md', '/health.md'],
+    });
+    healthReference.node.addDependency(publish);
     for (const [id, Record] of [['AliasIpv4', route53.ARecord], ['AliasIpv6', route53.AaaaRecord]] as const) {
       new Record(this, id, {
         zone, recordName: 'auth',
