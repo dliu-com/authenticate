@@ -124,6 +124,8 @@ Each links to its machine reference immediately below the heading and ends with 
 shared tier rows, labelled arrows, component cards and matching service icons.
 The local docs script reads icon colours from Architecture's shared badge palette;
 no inline HTML styles or app-specific colour palette is added.
+The Health tab links near its heading to Auth's own live-status page at
+https://status.dliu.com/site/auth.
 Six anonymous GET/HEAD checks cover the page, script availability, public
 configuration, popup return assets and Docs. Large assets use HEAD; the Status
 app owns the overall monitoring budget. No credentials, writes, real OAuth,

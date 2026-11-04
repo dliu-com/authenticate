@@ -32,6 +32,10 @@ test('human guest-check flows, figures, function table and chart match the full 
   assert.match(html, /^\s*<h2>[^<]+<\/h2>\s*<p>Machine-readable version: <a href="\/docs\/health\.md">\/docs\/health\.md<\/a><\/p>/);
   assert.match(html, /<p><a href="\/docs\/health\.md">Technical version for machines \(Markdown\)<\/a><\/p>\s*$/);
   assert.equal([...html.matchAll(/<a href="\/docs\/health\.md"/g)].length, 2);
+  const introduction = html.slice(0, html.indexOf('<p class="lead">'));
+  assert.match(introduction, /<p>Live status: <a href="https:\/\/status\.dliu\.com\/site\/auth" rel="noreferrer">status\.dliu\.com\/site\/auth<\/a><\/p>/);
+  assert.deepEqual([...html.matchAll(/href="(https:\/\/status\.dliu\.com\/site\/[^"]+)"/g)]
+    .map(([, url]) => url), ['https://status.dliu.com/site/auth']);
   assert.doesNotMatch(html, /<(?:code|pre|details|script)\b|Cache-Control|Content-Type|Authorization:|\bJSON\b|\bGET\b|\bHEAD\b|\b[1-5]\d{2}\b|application\/json|text\/(?:html|javascript|markdown)|configured\s*=/);
 
   const functions = markdownRows(markdown.match(/## Functions\n([\s\S]*?)\n## Guest checks/)[1]);
