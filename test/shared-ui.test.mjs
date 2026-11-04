@@ -55,6 +55,14 @@ test('the release includes the original blue lock logo for the header and favico
   assert.match(logo, /d="M12 15v-4a4 4 0 0 1 8 0v4M10 15h12v10H10z"/);
 });
 
+test('Architecture begins with the shared source-code link to this public repository', async () => {
+  const html = await source('web/docs.html');
+  const architecture = html.match(/<article id="architecture" class="dl-docs">([\s\S]*?)<\/article>/)[1];
+  assert.match(architecture, /^\s*<p class="dl-docs-repo"><span data-zh="&#28304;&#20195;&#30721;&#65306;">Source code:<\/span> <a href="https:\/\/github\.com\/dliu-com\/authenticate">github\.com\/dliu-com\/authenticate<\/a><\/p>\s*<h2>/);
+  assert.equal([...architecture.matchAll(/class="dl-docs-repo"/g)].length, 1);
+  assert.equal(await source('build/web/docs.html'), html);
+});
+
 test('shared styles own the palette and components; auth CSS is token-console layout only', async () => {
   const css = await source('web/style.css');
   assert.doesNotMatch(css, /:root|prefers-color-scheme|color-scheme|#[a-f\d]{3,8}\b|rgba?\(|hsla?\(/i);

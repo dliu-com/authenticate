@@ -93,6 +93,9 @@ export; existing credential files cannot gain new claims.
 
 ### Site documentation
 
+Architecture starts with the shared `dl-docs-repo` source-code link to
+https://github.com/dliu-com/authenticate, before its heading and diagrams.
+
 `/docs` and `/docs/` serve the static documentation page, using the shared
 horizontal tabs: Architecture, Cost, Security, API and Health. The existing
 `#architecture` anchor is unchanged.
