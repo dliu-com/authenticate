@@ -82,12 +82,15 @@ test('default entry deploys only a private static site, never the retired authen
   assert(!JSON.stringify(allPolicies).includes('dynamodb:'));
   const deployment = resources.find((r) => r.Type === 'Custom::CDKBucketDeployment');
   assert.deepEqual(deployment.Properties.SystemMetadata, { 'cache-control': 'no-store' });
-  assert.deepEqual(deployment.Properties.Exclude, ['health.md']);
+  assert.deepEqual(deployment.Properties.Exclude, ['health.md', 'api.md']);
   template.resourceCountIs('Custom::CDKBucketDeployment', 2);
   template.hasResourceProperties('Custom::CDKBucketDeployment', {
     Prune: false,
     SystemMetadata: { 'cache-control': 'no-store', 'content-type': 'text/markdown; charset=utf-8' },
-    DistributionPaths: ['/docs/health.md', '/health.md'],
+    DistributionPaths: ['/docs/health.md', '/health.md', '/docs/api.md', '/api.md'],
   });
+  const references = resources.find((r) =>
+    r.Type === 'Custom::CDKBucketDeployment' && r.Properties.Prune === false);
+  assert.equal(references.Properties.SourceObjectKeys.length, 2);
   app.synth();
 });

@@ -25,11 +25,11 @@
   </header>
   <main class="dl-main dl-docs-main">
     <nav class="dl-tabs" aria-label="Docs sections">
-      <a href="#architecture">Technical architecture</a>
+      <a href="#architecture">Architecture</a>
       <a href="#cost">Cost</a>
       <a href="#security">Security</a>
       <a href="#api">API</a>
-      <a href="#health">Testing</a>
+      <a href="#health">Health</a>
     </nav>
     <article id="architecture" class="dl-docs">
       <h2>How it works</h2>
@@ -98,7 +98,7 @@
         and enforce the shared API role and its own scopes. This does not change the sites' ordinary website
         sign-in or make a token for Microsoft Graph valid for these APIs.</p>
       <p>For public availability monitoring without sign-in or tokens, see
-        <a href="/docs#health">Testing</a> and its full machine-readable reference.
+        <a href="/docs#health">Health</a> and its full machine-readable reference.
         Guest monitoring is separate from authenticated API use.</p>
       <p>Release builds load shared public OAuth metadata from the central
         <code>/dliu/entra-tenant-id</code> and <code>/dliu/api-app-id</code> SSM String
@@ -106,8 +106,10 @@
         These reads happen in the deployment process, not in the visitor's browser or
         an Auth backend. No token, client secret or AWS credential is published.</p>
       <p class="source">Uses Microsoft's authorization-code flow with PKCE and MSAL Browser.
-        Video's managed API has passed live read/write verification. Files, Blog and Trip planner
-        require their own configuration, release and live API verification before use.</p>
+        Video's managed API has passed live read/write verification. All four managed APIs,
+        including Files, Blog and Trip planner, have passed separately authorised read-only
+        identity checks. This bounded live API verification does not prove every operation
+        or future availability.</p>
     </article>
     <article id="cost" class="dl-docs">
       <h2>Running costs</h2>
@@ -339,197 +341,96 @@
     </article>
     <article id="api" class="dl-docs">
       <h2>Shared API authentication</h2>
-      <p class="lead">This is the authentication reference for dliu.com APIs: obtaining a
-        Microsoft-issued access token, saving/loading local credentials and sending the token.
-        Each application's API documentation owns its endpoints, payloads, responses and
-        required scopes/roles, and links here for authentication.</p>
-      <ol>
-        <li>Sign in with a Microsoft account that is assigned the required API access.</li>
-        <li>All integrated site permissions are requested automatically; check the displayed expiry.</li>
-        <li>Save or copy as needed while the token remains valid.</li>
-        <li>Use the trusted API URL and route documented by the application, not an assumed website API origin.</li>
-        <li>When the token expires, return here for a new one. There is no refresh token to export.</li>
-      </ol>
-      <h2>One API user role, site-specific scopes</h2>
-      <p>All sites share Microsoft's token issuer, API audience and approved browser client.
-        The User-only <strong>dliu API user</strong> role, whose token value is
-        <code>api.access</code>, is shared by Video, Files, Blog and Trip planner. Assignment to
-        this role permits API access across all four sites, but each operation still requires
-        its exact delegated scope. The role never bypasses scope checks, token validation or
-        an application's existing data-access rules.</p>
-      <p>API access does not replace website sign-in, cookies or share links. Other organisation
-        users can continue using the standard webpages without this role; a website session
-        never substitutes for the API role. Assign the role only to the intended API operator,
-        not to every organisation member.</p>
+      <p class="lead">Get a Microsoft-issued token here, save it privately, then let a trusted
+        tool carry out an explicitly authorised task in another dliu.com app. This page
+        explains the journey; the machine reference has the exact credential instructions.</p>
+      <div class="dg-stats">
+        <div class="dg-stat"><div class="dg-text"><strong>4 apps</strong><small>Video, Files, Blog and Trip planner</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>1 shared role</strong><small>Assigned API operator, not every website visitor</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>2 export actions</strong><small>Save file or Copy token file</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>12 permissions</strong><small>Read, change and delete for each app</small></div></div>
+      </div>
+      <figure class="dg">
+        <figcaption>From sign-in to an authorised task</figcaption>
+        <div class="dg-flow">
+          <div class="dg-step"><div class="dg-text"><strong>1. Sign in with Microsoft</strong><small>Microsoft checks your account and assigned access.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>2. Save or copy</strong><small>Keep the token private on the machine running your trusted tool.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>3. Authorise a task</strong><small>Give the tool the app's instructions and only the task you want performed.</small></div></div>
+          <span class="dg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dg-step"><div class="dg-text"><strong>4. The app checks access</strong><small>It verifies the token, role, operation permission and data-access rules.</small></div></div>
+        </div>
+        <p class="dg-good">Allowed: a valid token and all the app's access checks pass.</p>
+        <p class="dg-warn">Expired: return here, sign in and save a new token.</p>
+        <p class="dg-bad">Denied: an unassigned account or missing permission does not gain access.</p>
+      </figure>
+      <h2>Which apps can use it?</h2>
+      <p>All four apps use the same <strong>dliu API user</strong> role, but the role never
+        bypasses an operation's permission checks. Website sign-in and sharing remain
+        separate and unchanged. This is not a Microsoft directory-administrator role.</p>
+      <figure class="dg">
+        <figcaption>Permission coverage by app</figcaption>
+        <p>Each bar shows three of the twelve requested permissions, not live API usage.</p>
+        <div class="table-wrap">
+          <table id="api-permissions">
+            <thead><tr><th>App and its guide</th><th>Permission groups</th><th>Share of requested permissions</th></tr></thead>
+            <tbody>
+              <tr data-api-site="video"><td><a href="https://video.dliu.com/docs/api" rel="noreferrer">Video</a></td><td>Read, change, delete</td><td><meter min="0" max="12" value="3" aria-label="Video: 3 of 12 permissions">3 of 12</meter> 3 of 12</td></tr>
+              <tr data-api-site="files"><td><a href="https://files.dliu.com/docs/api" rel="noreferrer">Files</a></td><td>Read, change, delete</td><td><meter min="0" max="12" value="3" aria-label="Files: 3 of 12 permissions">3 of 12</meter> 3 of 12</td></tr>
+              <tr data-api-site="blog"><td><a href="https://blog.dliu.com/docs/api" rel="noreferrer">Blog</a></td><td>Read, change, delete</td><td><meter min="0" max="12" value="3" aria-label="Blog: 3 of 12 permissions">3 of 12</meter> 3 of 12</td></tr>
+              <tr data-api-site="trip"><td><a href="https://plan.dliu.com/docs/api" rel="noreferrer">Trip planner</a></td><td>Read, change, delete</td><td><meter min="0" max="12" value="3" aria-label="Trip planner: 3 of 12 permissions">3 of 12</meter> 3 of 12</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <h2>What happens to your token?</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Application</th><th>Requested delegated scopes</th></tr></thead>
+          <thead><tr><th>Action</th><th>What it does</th><th>What to remember</th></tr></thead>
           <tbody>
-            <tr><td>Video</td><td><code>video.read</code>, <code>video.write</code>, <code>video.delete</code></td></tr>
-            <tr><td>Files</td><td><code>files.read</code>, <code>files.write</code>, <code>files.delete</code></td></tr>
-            <tr><td>Blog</td><td><code>blog.read</code>, <code>blog.write</code>, <code>blog.delete</code></td></tr>
-            <tr><td>Trip planner</td><td><code>trip.read</code>, <code>trip.write</code>, <code>trip.delete</code></td></tr>
+            <tr><td>Save file</td><td>You choose a private local destination.</td><td>The file contains a powerful credential; keep it out of chat and source control.</td></tr>
+            <tr><td>Copy token file</td><td>Copies the complete credential record for you to save.</td><td>Copying is not saving; clipboard history can retain it.</td></tr>
+            <tr><td>Repeat an export</td><td>The valid token stays available on this page.</td><td>Microsoft sets the expiry shown on the page; saving does not extend it.</td></tr>
+            <tr><td>Leave the page</td><td>The displayed token is removed; reloading cannot restore it.</td><td>Saved files and clipboard copies remain, and the token is not revoked.</td></tr>
           </tbody>
         </table>
       </div>
-      <p>The application's API guide defines which scope each operation requires and any
-        additional access restrictions. The shared API role is an application permission, not
-        a Microsoft directory-administrator role. The token console never requests Microsoft Graph
-        management permissions.</p>
-      <p>After an administrator adds an integration, scope or role assignment, obtain a new
-        token here and save it again. An already-exported token does not acquire new claims,
-        and clients cannot renew it by editing <code>~/.dliu_token</code>. Only configured and
-        deployed APIs are usable; the application guide gives its actual managed API URL.</p>
-      <h2>Saving a local token file</h2>
-      <p>After sign-in, choose <strong>Save file</strong>. In supported desktop Edge and Chrome,
-        the native Save As dialog suggests <code>.dliu_token</code>; choose your home folder
-        to save it at <code>~/.dliu_token</code>. A website cannot silently select or write to
-        your home directory. It does not upload the token or retain a file handle.</p>
-      <p>Chrome on macOS sanitizes suggested filenames and can remove the leading dot.
-        The site still requests <code>.dliu_token</code>, but cannot override the browser's
-        filename sanitization. Type the leading dot back into <strong>Save As</strong> before
-        saving. If a different name is chosen, the page warns that clients need the default
-        name; a file named <code>dliu_token</code> is not <code>~/.dliu_token</code>.</p>
-      <p>Browsers without a Save As API show <strong>Download file</strong> instead. Move the
-        downloaded file to your home folder and ensure its name is <code>.dliu_token</code>,
-        including the leading dot.</p>
-      <pre class="code"><code>token=&lt;Microsoft-access-token&gt;
-expires_at=&lt;actual-expiry-in-UTC&gt;</code></pre>
-      <p><strong>Copy token file</strong> copies this complete two-field record, including the
-        actual UTC expiration time, for you to paste into <code>~/.dliu_token</code> as plain
-        text. <strong>Save file</strong> and <strong>Copy token file</strong> are the only
-        token-panel actions. Copying does not write a local file, and neither action discards
-        the valid token from this page. Reload or close the page to remove its displayed token.</p>
-      <p>The expiry comes from Microsoft's response, not a fixed 24-hour assumption. The file
-        contains no ID token, refresh token or password. Saving, copying, cancellation or failure
-        leaves the valid token available for another attempt. A new sign-in, expiry or leaving the page
-        cancels a save still waiting for a destination. An operation already committing to disk
-        may finish; clearing the page cannot undo a saved file.</p>
-      <div class="dg-callout"><strong>The file is plaintext.</strong> Keep it private and outside
-        source control. The browser controls filesystem permissions; on macOS/Linux you can
-        restrict access with <code>chmod 600 ~/.dliu_token</code>. Clearing the page does not
-        delete the saved file or revoke its token.</div>
-      <h2>Default credentials for clients and agents</h2>
-      <p>Look for <code>~/.dliu_token</code> on the machine running the API client or agent.
-        Parse the two fields as data; do not <code>source</code> the file or print its contents.
-        Reject missing, malformed or expired credentials before sending a request. A remote
-        agent cannot automatically read a file on your Mac: provide credentials through its
-        approved secret configuration, never through chat or the Auth website.</p>
-      <p>Application requesters reread this file for every request. An explicit access-token
-        override takes precedence; an empty/invalid override fails instead of falling back.
-        A token-file override selects an absolute
-        credential-file path (use <code>$HOME/.dliu_token</code>, not a literal <code>~/</code>
-        in that variable). Saved-file mode checks both <code>expires_at</code> and JWT
-        <code>exp</code>, using the earlier expiry. Raw-token-only files need a fresh
-        <strong>Save file</strong> export. These local checks are not signature authorization;
-        the application gateway still validates Microsoft's token.</p>
+      <p>A remote AI cannot automatically open a file on your computer. Use only its approved
+        secret configuration, never paste the token into chat. Access is powerful across
+        the integrated apps, including destructive operations.</p>
+      <h2>Which pages are involved?</h2>
+      <p>Auth is a static token console, not an application API backend. The other app's guide
+        supplies its real API address and operations; do not assume they run on its website address.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Requester</th><th>Access-token override</th><th>Token-file override</th></tr></thead>
+          <thead><tr><th>Page</th><th>Purpose</th></tr></thead>
           <tbody>
-            <tr><td>Video</td><td><code>VIDEO_API_ACCESS_TOKEN</code></td><td><code>VIDEO_API_TOKEN_FILE</code></td></tr>
-            <tr><td>Files</td><td><code>FILES_API_ACCESS_TOKEN</code></td><td><code>FILES_API_TOKEN_FILE</code></td></tr>
-            <tr><td>Blog</td><td><code>BLOG_API_ACCESS_TOKEN</code></td><td><code>BLOG_API_TOKEN_FILE</code></td></tr>
-            <tr><td>Trip planner</td><td><code>TRIP_API_ACCESS_TOKEN</code></td><td>Uses the default file; its API guide documents supported overrides.</td></tr>
+            <tr><td>/</td><td>Start sign-in, see the actual expiry and export the token.</td></tr>
+            <tr><td>/redirect.html</td><td>Return Microsoft's sign-in result to the original browser page.</td></tr>
+            <tr><td>/docs#api</td><td>This plain-language overview.</td></tr>
+            <tr><td>/docs/api.md</td><td>Exact authentication instructions for clients and AI agents.</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Overrides are optional; the default workflow uses the saved file. These variables
-        configure the local requester, not Auth. Application guides supply each requester's
-        API base and site-specific usage. Explicit access-token mode leaves expiry enforcement
-        to the gateway; the requester must not silently fall back to another credential source.</p>
-      <p>The Video requester alone retains a separate native-client mode selected by explicit
-        native tenant/client/audience settings. Leave those settings unset when using
-        browser-saved credentials; that native client is not approved by the current
-        browser-client API guard. The Files, Blog and Trip planner requesters do not acquire
-        Microsoft credentials themselves.</p>
-      <h2>Sending the token</h2>
-      <p>Use a trusted client's secret bearer-token field, or send this header directly to the
-        application's HTTPS API. Use an access token, not an ID token, password or refresh token.
-        Do not put it in a URL, source control, chat, request logs or verbose HTTP traces.</p>
-      <pre class="code"><code>GET /&lt;application-route&gt; HTTP/1.1
-Host: &lt;managed-api-host&gt;
-Authorization: Bearer &lt;access-token&gt;</code></pre>
-      <h3>Read-only curl request from the default file</h3>
-      <p>Set <code>API_REQUEST_URL</code> to a trusted HTTPS endpoint from the application's API
-        docs. This example validates the saved record and keeps the token out of curl's command
-        arguments and output; only the API response is printed.</p>
-      <pre class="code"><code>API_REQUEST_URL='https://&lt;trusted-api-host&gt;/&lt;read-only-route&gt;'
-python3 - "$API_REQUEST_URL" &lt;&lt;'PY'
-import base64, datetime, json, re, subprocess, sys
-from pathlib import Path
-from urllib.parse import urlsplit
-
-def fail(message):
-    raise SystemExit(message)
-
-try:
-    lines = (Path.home() / ".dliu_token").read_text(encoding="utf-8").splitlines()
-except OSError:
-    fail("Cannot read ~/.dliu_token. Use Save file in Auth.")
-fields = {}
-for line in lines:
-    if not line:
-        continue
-    key, separator, value = line.partition("=")
-    if not separator or key not in ("token", "expires_at") or key in fields:
-        fail("Malformed credential file. Export it again from Auth.")
-    fields[key] = value
-if set(fields) != {"token", "expires_at"}:
-    fail("The file must contain token= and expires_at= fields.")
-token = fields["token"]
-if not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", token):
-    fail("Invalid access-token format.")
-try:
-    part = token.split(".")[1]
-    payload = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
-    token_expiry = payload["exp"]
-    if isinstance(token_expiry, bool) or not isinstance(token_expiry, int) or token_expiry &lt;= 0:
-        raise ValueError()
-    saved = fields["expires_at"]
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z", saved):
-        raise ValueError()
-    saved_expiry = datetime.datetime.fromisoformat(saved.replace("Z", "+00:00")).timestamp()
-except (ValueError, KeyError, TypeError):
-    fail("Invalid token or expiry metadata. Export the file again.")
-now = datetime.datetime.now(datetime.timezone.utc).timestamp()
-if now &gt;= min(saved_expiry, token_expiry):
-    fail("Token expired. Sign in to Auth and save a new file.")
-url = urlsplit(sys.argv[1])
-if url.scheme != "https" or not url.hostname or url.username or url.password or url.fragment:
-    fail("Use a trusted HTTPS API URL without URL credentials.")
-config = 'header = "Authorization: Bearer ' + token + '"\n'
-subprocess.run(["curl", "--fail-with-body", "--silent", "--show-error",
-                "--config", "-", sys.argv[1]], input=config, text=True, check=True)
-PY</code></pre>
-      <h2>Application API references</h2>
-      <p>Use the application's reference for its managed API URL, endpoints, required
-        permissions, request and response schemas, workflows and errors. Each reference
-        requires this shared authentication guide rather than duplicating credential instructions.</p>
-      <ul>
-        <li><a href="https://video.dliu.com/docs/api" rel="noreferrer">Video API reference</a></li>
-        <li><a href="https://files.dliu.com/docs/api" rel="noreferrer">Files API reference</a></li>
-        <li><a href="https://blog.dliu.com/docs/api" rel="noreferrer">Blog API reference</a></li>
-        <li><a href="https://plan.dliu.com/docs/api" rel="noreferrer">Trip planner API reference</a></li>
-      </ul>
-      <h2>Common failures</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Failure</th><th>What to check</th></tr></thead>
-          <tbody>
-            <tr><td>Microsoft sign-in is unavailable</td><td>Site configuration, exact SPA redirect, popup blocking and administrator consent.</td></tr>
-            <tr><td>Account not assigned</td><td>Entra enterprise application assignment and the required user role.</td></tr>
-            <tr><td>401 or 403 from the managed API</td><td>Correct endpoint, expiry, Microsoft issuer/audience, approved client, required scopes and role. Do not use an ID token.</td></tr>
-            <tr><td>Token no longer visible</td><td>It expired, another sign-in started, or the page was reloaded/closed. Obtain another token; reload does not restore one.</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <h2>If something goes wrong</h2>
+      <p>If Microsoft sign-in cannot finish, check popup blocking and ask the administrator
+        about account assignment or consent. If an app denies access, check its documented
+        address, token expiry and required permissions. New assignments or permissions
+        require a new token; editing a saved file cannot grant access.</p>
+      <p><a href="/docs/api.md">Technical version for machines (Markdown)</a></p>
     </article>
     <article id="health" class="dl-docs">
       <h2>Can visitors use Auth?</h2>
       <p class="lead">The status checker visits like any other guest. It checks that the token
         page and its sign-in preparation are available, without signing in, generating a
         token or opening your saved files.</p>
+      <div class="dg-stats">
+        <div class="dg-stat"><div class="dg-text"><strong>5 functions</strong><small>Public availability, not a completed sign-in</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>6 checks</strong><small>Small pages and script availability</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>15 minutes</strong><small>Between scheduled checks</small></div></div>
+        <div class="dg-stat"><div class="dg-text"><strong>0 sign-ins</strong><small>No account, token or personal files</small></div></div>
+      </div>
       <figure class="dg">
         <figcaption>How the guest check works</figcaption>
         <div class="dg-flow">
@@ -544,74 +445,45 @@ PY</code></pre>
         <p class="dg-bad">Down: a critical function fails in two consecutive runs.</p>
       </figure>
       <h2>What is checked</h2>
-      <ul>
-        <li data-health-function="pages"><strong>Token page:</strong> visitors can open the page; without it, they cannot start.</li>
-        <li data-health-function="runtime"><strong>Page controls:</strong> the browser program is available; without it, sign-in and export controls cannot run.</li>
-        <li data-health-function="configuration"><strong>Sign-in setup:</strong> the public setup is present; without it, the page disables sign-in.</li>
-        <li data-health-function="signin"><strong>Sign-in return page:</strong> the popup's return page and program are available; without them, sign-in may not finish.</li>
-        <li data-health-function="documentation"><strong>Help pages:</strong> visitors can reach the instructions; missing help does not by itself mean token issuance is down.</li>
-      </ul>
+      <div class="table-wrap">
+        <table id="health-functions">
+          <thead><tr><th>Function</th><th>How it is tested</th><th>Working / not working for a visitor</th></tr></thead>
+          <tbody>
+            <tr data-health-function="pages"><td>Token page</td><td>Open the home page.</td><td>Working: you can start. Not working: the page cannot be opened.</td></tr>
+            <tr data-health-function="runtime"><td>Page controls</td><td>Check that the page's program is available.</td><td>Working: the program can load. Not working: sign-in and export controls may not run.</td></tr>
+            <tr data-health-function="configuration"><td>Sign-in setup</td><td>Check the public sign-in settings.</td><td>Working: setup is available. Not working: the page disables sign-in.</td></tr>
+            <tr data-health-function="signin"><td>Sign-in return page</td><td>Check the popup return page and its program.</td><td>Working: the return assets are available. Not working: sign-in may not finish.</td></tr>
+            <tr data-health-function="documentation"><td>Help pages</td><td>Check that Docs is available.</td><td>Working: instructions can load. Not working: help is missing, but token issuance is not necessarily down.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure class="dg">
+        <figcaption>How the six availability checks are shared</figcaption>
+        <p>These bars show coverage, not current live results. The return page has two checks
+          because both its page and program must be available.</p>
+        <div class="table-wrap">
+          <table id="health-coverage">
+            <thead><tr><th>Function</th><th>Checks in each run</th></tr></thead>
+            <tbody>
+              <tr data-health-coverage="pages"><td>Token page</td><td><meter min="0" max="6" value="1" aria-label="Token page: 1 of 6 checks">1 of 6</meter> 1</td></tr>
+              <tr data-health-coverage="runtime"><td>Page controls</td><td><meter min="0" max="6" value="1" aria-label="Page controls: 1 of 6 checks">1 of 6</meter> 1</td></tr>
+              <tr data-health-coverage="configuration"><td>Sign-in setup</td><td><meter min="0" max="6" value="1" aria-label="Sign-in setup: 1 of 6 checks">1 of 6</meter> 1</td></tr>
+              <tr data-health-coverage="signin"><td>Sign-in return page</td><td><meter min="0" max="6" value="2" aria-label="Sign-in return page: 2 of 6 checks">2 of 6</meter> 2</td></tr>
+              <tr data-health-coverage="documentation"><td>Help pages</td><td><meter min="0" max="6" value="1" aria-label="Help pages: 1 of 6 checks">1 of 6</meter> 1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
       <h2>No application health service</h2>
       <p>Auth is a static website. It has no application backend or separate health endpoint,
         and these checks do not add one. Deployment helpers are not a token-processing service.</p>
       <h2>What a guest cannot test</h2>
-      <p>A guest cannot prove that a particular Microsoft account can sign in, pass MFA or
-        receive API permissions. The checker does not test real token generation, actual
-        token lifetime, clipboard or saved-file operations, or another app's API access.</p>
-      <p><a href="/docs/health.md">Full technical version (Markdown)</a></p>
-      <details>
-        <summary>Functions and public request checks</summary>
-        <p>Use anonymous GET or HEAD requests only, without cookies, Authorization, request
-          bodies or redirects. Match the media type before any semicolon; charset parameters
-          are permitted. A HEAD response has no body marker.</p>
-        <div class="table-wrap">
-          <table id="health-functions">
-            <thead><tr><th>Key</th><th>Name</th><th>Critical</th></tr></thead>
-            <tbody>
-              <tr><td>pages</td><td>Token page</td><td>yes</td></tr>
-              <tr><td>runtime</td><td>Page controls</td><td>yes</td></tr>
-              <tr><td>configuration</td><td>Sign-in setup</td><td>yes</td></tr>
-              <tr><td>signin</td><td>Sign-in return page</td><td>yes</td></tr>
-              <tr><td>documentation</td><td>Help pages</td><td>no</td></tr>
-            </tbody>
-          </table>
-          <table id="health-checks">
-            <thead><tr><th>Function</th><th>Method</th><th>URL</th><th>Status</th><th>Media type</th><th>Body marker or rule</th><th>Slow ms</th></tr></thead>
-            <tbody>
-              <tr><td>pages</td><td>GET</td><td>https://auth.dliu.com/</td><td>200</td><td>text/html</td><td>Sign in. Get your token.</td><td>2000</td></tr>
-              <tr><td>runtime</td><td>HEAD</td><td>https://auth.dliu.com/app.js</td><td>200</td><td>text/javascript</td><td>-</td><td>2000</td></tr>
-              <tr><td>configuration</td><td>GET</td><td>https://auth.dliu.com/config.json</td><td>200</td><td>application/json</td><td>configured=true</td><td>2000</td></tr>
-              <tr><td>signin</td><td>GET</td><td>https://auth.dliu.com/redirect.html</td><td>200</td><td>text/html</td><td>src="/redirect.js"</td><td>2000</td></tr>
-              <tr><td>signin</td><td>HEAD</td><td>https://auth.dliu.com/redirect.js</td><td>200</td><td>text/javascript</td><td>-</td><td>2000</td></tr>
-              <tr><td>documentation</td><td>HEAD</td><td>https://auth.dliu.com/docs</td><td>200</td><td>text/html</td><td>-</td><td>2000</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>The configuration check also requires GUID-shaped tenantId, clientId and audience,
-          with clientId equal to audience. Those are public OAuth identifiers, not credentials.
-          Do not log their values. This checks shape, not live Entra consent or assignment.</p>
-        <p>The old /docs/health and /docs/health/ human URLs return 301 with
-          Location: /docs#health. The Markdown URL remains /docs/health.md.</p>
-      </details>
-      <details>
-        <summary>Timing, caching, safety and optional Microsoft discovery</summary>
-        <p>Run every 15 minutes using dliu-status-bot/1.0 (+https://status.dliu.com/docs).
-          Request sequentially, with a five-second timeout and a 64 KiB limit on GET bodies.
-          Retry a failed check once; mark a function down only after two failed runs.
-          A response taking more than 2000 ms is a warning, not proof of total failure.</p>
-        <p>Auth responses remain Cache-Control: no-store, max-age=0; CloudFront caching is
-          disabled. Do not add a cached /health route, write probe, load test, bucket listing
-          or authenticated request. HEAD checks avoid repeatedly downloading large scripts
-          and documentation. These six small checks add no backend; the Status app must
-          enforce its overall monthly budget, rather than assuming free account allowances.</p>
-        <p>Optional upstream discovery: read tenantId from the validated public config, then
-          GET https://login.microsoftonline.com/&lt;tenantId&gt;/v2.0/.well-known/openid-configuration.
-          Allow only that Microsoft host and GUID-shaped tenant value. Expect HTTP 200,
-          application/json, issuer equal to https://login.microsoftonline.com/&lt;tenantId&gt;/v2.0,
-          and an authorization_endpoint on login.microsoftonline.com. This public discovery
-          request uses no Graph call, login or token. It is not part of the six scheduled
-          site checks and does not prove account access or successful token issuance.</p>
-      </details>
+      <ul>
+        <li>Whether a particular Microsoft account can sign in, pass MFA or receive API access.</li>
+        <li>Real token generation, its actual lifetime, clipboard copying or saving a file.</li>
+        <li>Another app's signed-in actions, permissions or changes to your content.</li>
+      </ul>
+      <p><a href="/docs/health.md">Technical version for machines (Markdown)</a></p>
     </article>
   </main>
   <footer class="dl-footer">

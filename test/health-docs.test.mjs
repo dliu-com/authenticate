@@ -10,35 +10,47 @@ const markdownRows = (section) => section.split('\n')
 const htmlRows = (html, id) => {
   const table = html.match(new RegExp(`<table id="${id}">([\\s\\S]*?)<\\/table>`))[1];
   const body = table.match(/<tbody>([\s\S]*?)<\/tbody>/)[1];
-  return [...body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+  return [...body.matchAll(/<tr(?:\s[^>]*)?>([\s\S]*?)<\/tr>/g)]
     .map(([, row]) => [...row.matchAll(/<td>([\s\S]*?)<\/td>/g)].map(([, cell]) => cell));
 };
 
-test('human guest-check diagrams and closed technical details match the full Markdown contract', async () => {
+test('human guest-check flows, figures, function table and chart match the full machine contract', async () => {
   const [docs, markdown] = await Promise.all([source('web/docs.html'), source('web/health.md')]);
   const html = docs.match(/<article id="health" class="dl-docs">([\s\S]*?)<\/article>/)[1];
   assert.equal(await source('build/web/docs.html'), docs);
   assert.equal(await source('build/web/health.md'), markdown);
   await assert.rejects(() => source('web/health.html'), { code: 'ENOENT' });
   await assert.rejects(() => source('build/web/health.html'), { code: 'ENOENT' });
-  assert.match(docs, /<a href="#health">Testing<\/a>/);
-  for (const component of ['dg-flow', 'dg-step', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
+  assert.match(docs, /<a href="#health">Health<\/a>/);
+  for (const component of ['dg-stats', 'dg-stat', 'dg-flow', 'dg-step', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
     assert(html.includes(`class="${component}"`), `Missing human diagram component ${component}`);
   }
-  assert.match(html, /href="\/docs\/health\.md">Full technical version \(Markdown\)<\/a>/);
-  assert.equal([...html.matchAll(/<details>/g)].length, 2);
-  assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
-  const plain = html.replace(/<details>[\s\S]*?<\/details>/g, '');
-  assert.doesNotMatch(plain, /https:\/\/auth\.dliu\.com|Cache-Control|application\/json|\bGET\b|\bHEAD\b|\b200\b/);
+  assert.match(html, /<p><a href="\/docs\/health\.md">Technical version for machines \(Markdown\)<\/a><\/p>\s*$/);
+  assert.equal([...html.matchAll(/<a\b/g)].length, 1);
+  assert.doesNotMatch(html, /<(?:code|pre|details|script)\b|Cache-Control|Content-Type|Authorization:|\bJSON\b|\bGET\b|\bHEAD\b|\b[1-5]\d{2}\b|application\/json|text\/(?:html|javascript|markdown)|configured\s*=/);
 
   const functions = markdownRows(markdown.match(/## Functions\n([\s\S]*?)\n## Guest checks/)[1]);
   const checks = markdownRows(markdown.match(/## Guest checks\n([\s\S]*?)\n## Health endpoint/)[1]);
-  assert.deepEqual(htmlRows(html, 'health-functions'), functions);
-  assert.deepEqual(htmlRows(html, 'health-checks'), checks);
+  assert.deepEqual(htmlRows(html, 'health-functions').map(([name]) => name), functions.map(([, name]) => name));
   assert.deepEqual([...html.matchAll(/data-health-function="([^"]+)"/g)].map(([, key]) => key),
     functions.map(([key]) => key));
   assert.deepEqual(functions.map(([key]) => key), ['pages', 'runtime', 'configuration', 'signin', 'documentation']);
   assert.equal(checks.length, 6);
+  const coverage = [...html.matchAll(/<tr data-health-coverage="([^"]+)">[\s\S]*?<meter min="0" max="(\d+)" value="(\d+)"/g)];
+  assert.deepEqual(coverage.map(([, key]) => key), functions.map(([key]) => key));
+  for (const [, key, total, count] of coverage) {
+    assert.equal(Number(total), checks.length);
+    assert.equal(Number(count), checks.filter(([functionKey]) => functionKey === key).length);
+  }
+  for (const figure of [`${functions.length} functions`, `${checks.length} checks`, '15 minutes', '0 sign-ins']) {
+    assert(html.includes(`<strong>${figure}</strong>`));
+  }
+  assert.match(html, /not current live results/);
+  assert.match(html, /What a guest cannot test/);
+  for (const row of htmlRows(html, 'health-functions')) {
+    assert.equal(row.length, 3);
+    assert.match(row[2], /Working:.*Not working:/);
+  }
   for (const [key, method, url, status, type, marker, slow] of checks) {
     assert(functions.some(([name]) => name === key));
     assert(['GET', 'HEAD'].includes(method));
@@ -59,7 +71,7 @@ test('human guest-check diagrams and closed technical details match the full Mar
   }
   assert.doesNotMatch(html, /<script|\/Users\/|(?:\d{12})|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/i);
   assert.doesNotMatch(markdown, /<details|\/Users\/|(?:\d{12})|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/i);
-  assert.match(markdown, /Testing tab at https:\/\/auth\.dliu\.com\/docs#health/);
+  assert.match(markdown, /Health tab at https:\/\/auth\.dliu\.com\/docs#health/);
   assert.match(markdown, /301 with `Location: \/docs#health`/);
 });
 

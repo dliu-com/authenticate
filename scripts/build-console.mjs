@@ -24,7 +24,7 @@ await build({
 for (const name of ['docs.css', 'health.html']) {
   await rm(`${outdir}/${name}`, { force: true });
 }
-for (const name of ['index.html', 'redirect.html', 'style.css', 'docs.html', 'health.md', 'logo.svg']) {
+for (const name of ['index.html', 'redirect.html', 'style.css', 'docs.html', 'health.md', 'api.md', 'logo.svg']) {
   await copyFile(`${root}web/${name}`, `${outdir}/${name}`);
 }
 await writeFile(`${outdir}/config.json`, `${JSON.stringify(config)}\n`, { mode: 0o600 });

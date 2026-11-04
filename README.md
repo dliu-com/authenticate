@@ -14,9 +14,10 @@ PKCE, a Microsoft sign-in popup and a dedicated `/redirect.html` bridge. Microso
 issues the access token; the page only displays and explicitly exports it. There
 is no token API, custom signing key, client secret, authentication Lambda,
 database, application session or refresh-token export. Video's managed API has
-passed real credential-backed read/write verification. Files, Blog and Trip
-planner shared API integrations are being prepared; their Entra configuration,
-deployment and live verification remain separate release requirements.
+passed real credential-backed read/write verification. All four managed APIs,
+including Files, Blog and Trip planner, use the common API role and have passed
+separately authorised read-only identity checks. Those checks do not prove every
+application operation or future availability.
 
 ### Browser-only token handling
 
@@ -93,28 +94,38 @@ export; existing credential files cannot gain new claims.
 ### Site documentation
 
 `/docs` and `/docs/` serve the static documentation page, using the shared
-horizontal tabs: Technical architecture, Cost, Security, API and Testing.
-`/docs/api` and `/docs/api/` open the shared authentication reference directly:
-token acquisition/export, default `~/.dliu_token` credentials, expiry checks
-and bearer-token transport. App-specific endpoints, schemas and scopes belong
-to each app's API guide; those guides link here for authentication.
+horizontal tabs: Architecture, Cost, Security, API and Health. The existing
+`#architecture` anchor is unchanged.
+`/docs#api` is the human shared-authentication overview: sign-in/export flows,
+permission counts, an app-permission chart, page purposes and plain-language
+token-handling guidance. `/docs/api` and `/docs/api/` return 301 with
+`Location: /docs#api`. `/docs/api.md` is the complete machine-readable reference:
+token acquisition/export, default `~/.dliu_token` credentials, exact file format,
+expiry checks, requester overrides and bearer-token transport. App-specific
+endpoints, schemas and scopes belong to each app's API guide; those guides
+require this shared authentication reference.
 All sections remain readable without JavaScript; local JavaScript enhances them
 with hash-linked navigation. A narrowly scoped CloudFront Function rewrites only
-these four paths to `/docs.html`, leaving the OAuth bridge and all other paths
-unchanged. The **Testing** tab at `/docs#health` contains the human guest-check
+`/docs` and `/docs/` to `/docs.html`, handles the explicit legacy redirects and
+maps the two machine-reference URLs to their Markdown files, leaving the OAuth
+bridge and all other paths unchanged. The **Health** tab at `/docs#health` contains the human guest-check
 guide; `/docs/health` and `/docs/health/` return 301 with `Location: /docs#health`.
 `/docs/health.md` serves its full unfolded technical
-reference as `text/markdown; charset=utf-8`. The two representations are guarded
-against function/check drift. No `/health` backend is created. All scripts remain same-origin.
+reference. Both Markdown files are served as `text/markdown; charset=utf-8`
+with no-store responses. Tests guard human/chart/Markdown function, permission
+and check counts against drift. No `/health` backend is created. All scripts remain same-origin.
 
-The guest reference follows `../status/HEALTH.md`: a shared diagram and plain
-function summaries for people, closed technical details and a Markdown link.
+The guest reference follows `../status/HEALTH.md`: shared flow diagrams, big
+numbers, a plain-language function table, a static check-coverage chart and a short
+not-tested list. Both human tabs allow high-level page/endpoint names but contain
+no code blocks, exact headers/statuses/formats or folded technical details.
+Each ends with a "Technical version for machines (Markdown)" link.
 Six anonymous GET/HEAD checks cover the page, script availability, public
 configuration, popup return assets and Docs. Large assets use HEAD; the Status
 app owns the overall monitoring budget. No credentials, writes, real OAuth,
 Graph calls or token-file operations are part of guest checks. Optional public
 Microsoft discovery is documented separately and is not proof of account access.
-The Markdown object has a deployment-only content-type override and no-store
+The Markdown objects have a deployment-only content-type override and no-store
 metadata; this is not an application backend or periodic health Lambda.
 
 ### Public-source threat model

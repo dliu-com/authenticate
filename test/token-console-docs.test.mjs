@@ -8,23 +8,30 @@ const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8'
 
 test('documentation rewrites only its clean URLs, preserving the OAuth bridge and API paths', async () => {
   const script = await source('lib/static-routes.js');
-  const clean = ['/docs', '/docs/', '/docs/api', '/docs/api/'];
-  const health = ['/docs/health', '/docs/health/'];
-  for (const uri of [...clean, ...health, '/docs/health.md', '/', '/docs.html', '/docs.js', '/docs.css',
+  const clean = ['/docs', '/docs/'];
+  const redirects = new Map([
+    ['/docs/health', '/docs#health'], ['/docs/health/', '/docs#health'],
+    ['/docs/api', '/docs#api'], ['/docs/api/', '/docs#api'],
+  ]);
+  const markdown = new Map([['/docs/health.md', '/health.md'], ['/docs/api.md', '/api.md']]);
+  for (const uri of [...clean, ...redirects.keys(), ...markdown.keys(), '/', '/docs.html', '/docs.js', '/docs.css',
     '/redirect.html', '/redirect.js', '/auth/callback', '/api/me', '/docs/unknown', '/docs//', '/docs/apis',
-    '/health', '/health/', '/docs/health.md/', '/docs/health//']) {
-    const request = { uri, headers: {}, querystring: { example: { value: 'unchanged' } } };
+    '/health', '/health/', '/docs/health.md/', '/docs/health//', '/docs/api.md/', '/docs/api//']) {
+    const request = {
+      uri,
+      get headers() { assert.fail('Static routes must not read headers or credentials.'); },
+      get querystring() { assert.fail('Static routes must not read query strings.'); },
+    };
     const event = { request };
     const returned = runInNewContext(`${script}\nhandler(event);`, { event });
-    if (health.includes(uri)) {
+    if (redirects.has(uri)) {
       assert.equal(returned.statusCode, 301);
-      assert.equal(returned.headers.location.value, '/docs#health');
+      assert.equal(returned.headers.location.value, redirects.get(uri));
       assert.equal(returned.headers['cache-control'].value, 'no-store, max-age=0');
     } else {
       assert.equal(returned, request);
-      assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : uri === '/docs/health.md' ? '/health.md' : uri);
+      assert.equal(returned.uri, clean.includes(uri) ? '/docs.html' : markdown.get(uri) ?? uri);
     }
-    assert.deepEqual(request.querystring, { example: { value: 'unchanged' } });
   }
 });
 
@@ -40,7 +47,8 @@ test('docs use shared styles and local section navigation, with a readable no-Ja
   assert.deepEqual([...html.matchAll(/<article id="([^"]+)" class="dl-docs">/g)].map((match) => match[1]),
     ['architecture', 'cost', 'security', 'api', 'health']);
   assert.deepEqual([...html.matchAll(/<a href="#([^"]+)">([^<]+)<\/a>/g)].map((match) => match[2]),
-    ['Technical architecture', 'Cost', 'Security', 'API', 'Testing']);
+    ['Architecture', 'Cost', 'Security', 'API', 'Health']);
+  assert.doesNotMatch(html, /Technical architecture/);
   assert.doesNotMatch(html, /<article[^>]*hidden|<style|style=|\son\w+=|<script(?![^>]*\bsrc=)/);
   for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
     assert.match(match[1], /^(?:\/|#|https:\/\/)/);
@@ -122,6 +130,7 @@ test('public threat model separates source knowledge, public clients, bearer the
 
 test('docs distinguish Microsoft issuance, gateway verification, application authorization and token exposure', async () => {
   const html = await source('web/docs.html');
+  const markdown = await source('web/api.md');
   for (const text of [
     "Microsoft's cached public keys", 'approved client', 'assigned-user',
     '23:59:59', '60-90 minutes', 'Clearing is not revocation',
@@ -133,16 +142,16 @@ test('docs distinguish Microsoft issuance, gateway verification, application aut
   assert.match(html, /not an organisation-wide default/);
   assert.match(html, /Actual issued-token lifetime remains unverified/);
   assert.match(html, /href="https:\/\/video\.dliu\.com\/docs\/api"/);
-  assert.match(html, /native Save As dialog/);
+  assert.match(markdown, /native Save As dialog/);
   assert.match(html, /Supports HTTP\/2 and HTTP\/3/);
   assert.match(html, /CloudFront uses Price Class All/);
   assert.match(html, /does not guarantee a zero-cost bill/);
-  assert.match(html, /expires_at=/);
-  assert.match(html, /Chrome on macOS sanitizes suggested filenames/);
+  assert.match(markdown, /expires_at=/);
+  assert.match(markdown, /Chrome on macOS sanitizes suggested filenames/);
   assert.match(html, /Copy token file/);
-  assert.match(html, /complete two-field record/);
-  assert.match(html, /The file is plaintext/);
-  assert.match(html, /chmod 600 ~\/\.dliu_token/);
+  assert.match(markdown, /complete two-field record/);
+  assert.match(markdown, /The file is plaintext/);
+  assert.match(markdown, /chmod 600 ~\/\.dliu_token/);
   assert.match(html, /current page's JavaScript memory/);
   assert.match(html, /without\s+an application-level user-token cache/);
   assert.match(html, /Warm Lambda runtimes/);
@@ -152,12 +161,24 @@ test('docs distinguish Microsoft issuance, gateway verification, application aut
 test('Auth API docs own credential lookup and transport without duplicating app endpoints', async () => {
   const html = await source('web/docs.html');
   const api = html.match(/<article id="api" class="dl-docs">([\s\S]*?)<\/article>/)[1];
+  const markdown = await source('web/api.md');
+  assert.equal(await source('build/web/api.md'), markdown);
   for (const text of ['Shared API authentication', '~/.dliu_token', 'expires_at=',
     'Default credentials for clients and agents', 'Sending the token', 'VIDEO_API_ACCESS_TOKEN',
     'VIDEO_API_TOKEN_FILE', '--config', 'Raw-token-only files', 'remote', 'HTTPS']) {
-    assert(api.includes(text), `Missing shared-auth instruction: ${text}`);
+    const required = text === 'Shared API authentication' ? 'Shared dliu.com API authentication' : text;
+    assert(markdown.includes(required), `Missing shared-auth instruction: ${text}`);
   }
-  assert.match(api, /Authorization: Bearer/);
+  assert.match(markdown, /Authorization: Bearer/);
+  assert.match(markdown, /text\/markdown; charset=utf-8/);
+  assert.match(markdown, /301 with `Location: \/docs#api`/);
+  assert.doesNotMatch(markdown, /<details|\/Users\/|(?:\d{12})|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/i);
+  for (const component of ['dg-stats', 'dg-stat', 'dg-flow', 'dg-step', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
+    assert(api.includes(`class="${component}"`), `Missing human API component ${component}`);
+  }
+  assert.doesNotMatch(api, /<(?:code|pre|details|script)\b|Authorization:|Cache-Control|Content-Type|expires_at=|\bJSON\b|\bGET\b|\bHEAD\b|\b[1-5]\d{2}\b|application\/json|text\/(?:html|javascript|markdown)|api\.access/);
+  assert.match(api, /<p><a href="\/docs\/api\.md">Technical version for machines \(Markdown\)<\/a><\/p>\s*$/);
+  assert.match(api, /not live API usage/);
   assert.match(api, /https:\/\/video\.dliu\.com\/docs\/api/);
   assert.doesNotMatch(api, /Video route permissions|POST \/api\/|GET \/api\/me|GET \/api\/videos/);
 });
@@ -207,28 +228,41 @@ test('docs explain why Auth needs neither periodic cache clearing nor S3 cache c
 test('shared docs match every site scope and restrict API access to the common assigned-user role', async () => {
   const html = await source('web/docs.html');
   const api = html.match(/<article id="api" class="dl-docs">([\s\S]*?)<\/article>/)[1];
+  const markdown = await source('web/api.md');
+  const text = markdown.replace(/\s+/g, ' ');
   for (const scope of API_PERMISSIONS) {
-    assert(api.includes(`<code>${scope}</code>`), `Missing delegated scope: ${scope}`);
+    assert(markdown.includes(`\`${scope}\``), `Missing delegated scope: ${scope}`);
   }
   assert.match(api, /<strong>dliu API user<\/strong>/);
-  assert.match(api, /<code>api\.access<\/code>/);
-  assert.doesNotMatch(api, /<code>(?:video|files|blog|trip)\.access<\/code>/);
+  assert(markdown.includes('`api.access`'));
+  assert.doesNotMatch(markdown, /`(?:video|files|blog|trip)\.access`/);
   for (const host of ['video', 'files', 'blog', 'plan']) {
     assert(api.includes(`href="https://${host}.dliu.com/docs/api"`),
       `Missing application authentication reference: ${host}`);
   }
   for (const prefix of ['VIDEO', 'FILES', 'BLOG', 'TRIP']) {
-    assert(api.includes(`<code>${prefix}_API_ACCESS_TOKEN</code>`),
+    assert(markdown.includes(`\`${prefix}_API_ACCESS_TOKEN\``),
       `Missing requester override: ${prefix}`);
   }
-  assert.match(api, /this role permits API access across all four sites/);
-  assert.match(api, /role never bypasses scope checks/);
-  assert.match(api, /standard webpages without this role/);
-  assert.match(api, /not to every organisation member/);
-  assert.match(api, /API access does not replace website sign-in/);
-  assert.match(api, /already-exported token does not acquire new claims/);
-  assert.match(api, /Only configured and\s+deployed APIs are usable/);
-  assert.match(api, /not\s+a Microsoft directory-administrator role/);
+  for (const required of ['Assignment permits API access across the integrated sites',
+    'role never bypasses scope checks', 'standard webpages without this role',
+    'not to every organisation member', 'API access does not replace website sign-in',
+    'already-exported token does not acquire new claims', 'Only configured and deployed APIs are usable',
+    'not a Microsoft directory-administrator role', 'EARLIER expiry', 'empty/invalid explicit',
+    'MUST fail', 'not cryptographic token verification', 'Do not forward bearer credentials',
+    'not authorisation to perform tasks']) {
+    assert(text.includes(required), `Missing machine authentication boundary: ${required}`);
+  }
+  const chart = [...api.matchAll(/<tr data-api-site="([^"]+)">[\s\S]*?<meter min="0" max="(\d+)" value="(\d+)"/g)];
+  assert.deepEqual(chart.map(([, site]) => site), ['video', 'files', 'blog', 'trip']);
+  for (const [, site, total, count] of chart) {
+    assert.equal(Number(total), API_PERMISSIONS.length);
+    assert.equal(Number(count), API_PERMISSIONS.filter((scope) => scope.startsWith(`${site}.`)).length);
+  }
+  assert.match(api, /<strong>4 apps<\/strong>/);
+  assert.match(api, /<strong>1 shared role<\/strong>/);
+  assert.match(api, /<strong>2 export actions<\/strong>/);
+  assert(api.includes(`<strong>${API_PERMISSIONS.length} permissions</strong>`));
 });
 
 test('section links support direct hashes, switching, history changes and safe unknown-hash fallback', async () => {
@@ -265,21 +299,18 @@ test('section links support direct hashes, switching, history changes and safe u
   check('cost', 'Cost');
   window.location.hash = '#health';
   handlers.get('hashchange')();
-  check('health', 'Testing');
+  check('health', 'Health');
   window.location.hash = '#<script>untrusted</script>';
   handlers.get('hashchange')();
-  check('architecture', 'Technical architecture');
-  for (const pathname of ['/docs/api', '/docs/api/']) {
-    window.location.pathname = pathname;
-    window.location.hash = '';
-    handlers.get('hashchange')();
-    check('api', 'API');
-  }
+  check('architecture', 'Architecture');
+  window.location.hash = '#architecture';
+  handlers.get('hashchange')();
+  check('architecture', 'Architecture');
   window.location.hash = '#security';
   handlers.get('hashchange')();
   check('security', 'Security');
   window.location.pathname = '/docs';
   window.location.hash = '#health';
   handlers.get('hashchange')();
-  check('health', 'Testing');
+  check('health', 'Health');
 });

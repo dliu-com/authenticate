@@ -3,9 +3,7 @@ const links = [...document.querySelectorAll('.dl-tabs a')];
 
 function showSection() {
   const requested = window.location.hash.slice(1);
-  const defaultSection = ['/docs/api', '/docs/api/'].includes(window.location.pathname)
-    ? 'api' : 'architecture';
-  const selected = sections.includes(requested) ? requested : defaultSection;
+  const selected = sections.includes(requested) ? requested : 'architecture';
   for (const section of sections) {
     document.getElementById(section).hidden = section !== selected;
   }

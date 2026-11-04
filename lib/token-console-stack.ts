@@ -91,23 +91,23 @@ export class TokenConsoleStack extends Stack {
     });
     const publish = new deployment.BucketDeployment(this, 'Publish', {
       sources: [deployment.Source.asset(path.join(__dirname, '../build/web'))],
-      exclude: ['health.md'],
+      exclude: ['health.md', 'api.md'],
       destinationBucket: bucket,
       distribution,
       distributionPaths: ['/*'],
       cacheControl: [deployment.CacheControl.noStore()],
     });
-    const healthReference = new deployment.BucketDeployment(this, 'PublishHealthReference', {
-      sources: [deployment.Source.data('health.md',
-        readFileSync(path.join(__dirname, '../build/web/health.md'), 'utf8'))],
+    const machineReferences = new deployment.BucketDeployment(this, 'PublishHealthReference', {
+      sources: ['health.md', 'api.md'].map((name) => deployment.Source.data(name,
+        readFileSync(path.join(__dirname, '../build/web', name), 'utf8'))),
       destinationBucket: bucket,
       prune: false,
       contentType: 'text/markdown; charset=utf-8',
       cacheControl: [deployment.CacheControl.noStore()],
       distribution,
-      distributionPaths: ['/docs/health.md', '/health.md'],
+      distributionPaths: ['/docs/health.md', '/health.md', '/docs/api.md', '/api.md'],
     });
-    healthReference.node.addDependency(publish);
+    machineReferences.node.addDependency(publish);
     for (const [id, Record] of [['AliasIpv4', route53.ARecord], ['AliasIpv6', route53.AaaaRecord]] as const) {
       new Record(this, id, {
         zone, recordName: 'auth',
