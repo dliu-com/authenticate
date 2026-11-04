@@ -96,7 +96,7 @@ export; existing credential files cannot gain new claims.
 `/docs` and `/docs/` serve the static documentation page, using the shared
 horizontal tabs: Architecture, Cost, Security, API and Health. The existing
 `#architecture` anchor is unchanged.
-`/docs#api` is the human shared-authentication overview: sign-in/export flows,
+`/docs#api` is the human shared-authentication overview: tiered sign-in/export diagrams,
 permission counts, an app-permission chart, page purposes and plain-language
 token-handling guidance. `/docs/api` and `/docs/api/` return 301 with
 `Location: /docs#api`. `/docs/api.md` is the complete machine-readable reference:
@@ -115,11 +115,15 @@ reference. Both Markdown files are served as `text/markdown; charset=utf-8`
 with no-store responses. Tests guard human/chart/Markdown function, permission
 and check counts against drift. No `/health` backend is created. All scripts remain same-origin.
 
-The guest reference follows `../status/HEALTH.md`: shared flow diagrams, big
+The guest reference follows `../status/HEALTH.md`: shared tiered diagrams, big
 numbers, a plain-language function table, a static check-coverage chart and a short
 not-tested list. Both human tabs allow high-level page/endpoint names but contain
 no code blocks, exact headers/statuses/formats or folded technical details.
-Each ends with a "Technical version for machines (Markdown)" link.
+Each links to its machine reference immediately below the heading and ends with a
+"Technical version for machines (Markdown)" link. Diagrams use Architecture's
+shared tier rows, labelled arrows, component cards and matching service icons.
+The local docs script reads icon colours from Architecture's shared badge palette;
+no inline HTML styles or app-specific colour palette is added.
 Six anonymous GET/HEAD checks cover the page, script availability, public
 configuration, popup return assets and Docs. Large assets use HEAD; the Status
 app owns the overall monitoring budget. No credentials, writes, real OAuth,

@@ -22,11 +22,16 @@ test('human guest-check flows, figures, function table and chart match the full 
   await assert.rejects(() => source('web/health.html'), { code: 'ENOENT' });
   await assert.rejects(() => source('build/web/health.html'), { code: 'ENOENT' });
   assert.match(docs, /<a href="#health">Health<\/a>/);
-  for (const component of ['dg-stats', 'dg-stat', 'dg-flow', 'dg-step', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
+  for (const component of ['dg-stats', 'dg-stat', 'dg-link', 'dg-tier-label', 'dg-tier-nodes', 'dg-node', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
     assert(html.includes(`class="${component}"`), `Missing human diagram component ${component}`);
   }
+  assert.match(html, /<figure class="dg dg-tiers">/);
+  for (const tier of ['dg-untrusted', 'dg-edge', 'dg-app', 'dg-private']) {
+    assert(html.includes(`class="dg-tier ${tier}"`));
+  }
+  assert.match(html, /^\s*<h2>[^<]+<\/h2>\s*<p>Machine-readable version: <a href="\/docs\/health\.md">\/docs\/health\.md<\/a><\/p>/);
   assert.match(html, /<p><a href="\/docs\/health\.md">Technical version for machines \(Markdown\)<\/a><\/p>\s*$/);
-  assert.equal([...html.matchAll(/<a\b/g)].length, 1);
+  assert.equal([...html.matchAll(/<a href="\/docs\/health\.md"/g)].length, 2);
   assert.doesNotMatch(html, /<(?:code|pre|details|script)\b|Cache-Control|Content-Type|Authorization:|\bJSON\b|\bGET\b|\bHEAD\b|\b[1-5]\d{2}\b|application\/json|text\/(?:html|javascript|markdown)|configured\s*=/);
 
   const functions = markdownRows(markdown.match(/## Functions\n([\s\S]*?)\n## Guest checks/)[1]);

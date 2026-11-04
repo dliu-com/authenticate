@@ -173,9 +173,12 @@ test('Auth API docs own credential lookup and transport without duplicating app 
   assert.match(markdown, /text\/markdown; charset=utf-8/);
   assert.match(markdown, /301 with `Location: \/docs#api`/);
   assert.doesNotMatch(markdown, /<details|\/Users\/|(?:\d{12})|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/i);
-  for (const component of ['dg-stats', 'dg-stat', 'dg-flow', 'dg-step', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
+  for (const component of ['dg-stats', 'dg-stat', 'dg-link', 'dg-tier-label', 'dg-tier-nodes', 'dg-node', 'dg-arrow', 'dg-good', 'dg-warn', 'dg-bad']) {
     assert(api.includes(`class="${component}"`), `Missing human API component ${component}`);
   }
+  assert.match(api, /<figure class="dg dg-tiers">/);
+  assert.match(api, /^\s*<h2>[^<]+<\/h2>\s*<p>Machine-readable version: <a href="\/docs\/api\.md">\/docs\/api\.md<\/a><\/p>/);
+  assert.equal([...api.matchAll(/<a href="\/docs\/api\.md"/g)].length, 2);
   assert.doesNotMatch(api, /<(?:code|pre|details|script)\b|Authorization:|Cache-Control|Content-Type|expires_at=|\bJSON\b|\bGET\b|\bHEAD\b|\b[1-5]\d{2}\b|application\/json|text\/(?:html|javascript|markdown)|api\.access/);
   assert.match(api, /<p><a href="\/docs\/api\.md">Technical version for machines \(Markdown\)<\/a><\/p>\s*$/);
   assert.match(api, /not live API usage/);
@@ -265,6 +268,30 @@ test('shared docs match every site scope and restrict API access to the common a
   assert(api.includes(`<strong>${API_PERMISSIONS.length} permissions</strong>`));
 });
 
+test('human diagram cards and statistics have icons, reusing Architecture icons for the same services', async () => {
+  const html = await source('web/docs.html');
+  const section = (id) => html.match(new RegExp(`<article id="${id}" class="dl-docs">([\\s\\S]*?)<\\/article>`))[1];
+  const cards = (text) => new Map([...text.matchAll(/<div class="dg-node"><span class="dg-icon" data-dg-tier="([^"]+)" aria-hidden="true">(<svg[\s\S]*?<\/svg>)<\/span><div class="dg-text"><strong>([^<]+)<\/strong>/g)]
+    .map(([, tier, svg, title]) => [title, { tier, svg }]));
+  const architecture = cards(section('architecture'));
+  const api = cards(section('api'));
+  const health = cards(section('health'));
+  for (const name of ['Token page', 'Microsoft Entra ID', 'Trusted API client', 'API Gateway', 'Application Lambda']) {
+    assert.deepEqual(api.get(name), architecture.get(name), `Service icon/palette drift: ${name}`);
+    assert(api.has(name));
+  }
+  assert.deepEqual(health.get('Site bucket'), architecture.get('Site bucket'));
+  assert.deepEqual(health.get('Pages and controls'), architecture.get('Global edge delivery'));
+  for (const id of ['api', 'health']) {
+    const text = section(id);
+    const nodes = [...text.matchAll(/<div class="dg-node">/g)];
+    assert.equal(cards(text).size, nodes.length, `Every ${id} component needs a coloured service icon`);
+    const stats = text.match(/<div class="dg-stats">([\s\S]*?)<\/div>\s*<figure/)[1];
+    assert.equal([...stats.matchAll(/data-dg-tier=/g)].length, 4);
+    assert.equal([...stats.matchAll(/<svg /g)].length, 4);
+  }
+});
+
 test('section links support direct hashes, switching, history changes and safe unknown-hash fallback', async () => {
   const html = await source('web/docs.html');
   const links = [...html.matchAll(/<a href="#([^"]+)">([^<]+)<\/a>/g)].map((match) => ({
@@ -279,11 +306,26 @@ test('section links support direct hashes, switching, history changes and safe u
     addEventListener(name, handler) { handlers.set(name, handler); },
   };
   const document = {
-    querySelectorAll: () => links,
+    readyState: 'interactive',
+    querySelectorAll: (selector) => selector === '.dl-tabs a' ? links : icons,
+    querySelector: (selector) => ({ backgroundColor: palette.get(selector.split(' ')[1].slice(1)) }),
     getElementById: (id) => sections.get(id),
     title: '',
   };
-  runInNewContext(await source('web/docs.js'), { document, window });
+  const palette = new Map([
+    ['dg-untrusted', 'rgb(1, 2, 3)'], ['dg-edge', 'rgb(4, 5, 6)'],
+    ['dg-app', 'rgb(7, 8, 9)'], ['dg-private', 'rgb(10, 11, 12)'],
+  ]);
+  const icons = [...html.matchAll(/class="dg-icon" data-dg-tier="([^"]+)"/g)].map(([, tier]) => ({
+    tier, properties: new Map(),
+    getAttribute(name) { assert.equal(name, 'data-dg-tier'); return this.tier; },
+    get style() { return { setProperty: (name, value) => this.properties.set(name, value) }; },
+  }));
+  runInNewContext(await source('web/docs.js'), { document, window, getComputedStyle: (badge) => badge });
+  assert(icons.length > 0);
+  for (const icon of icons) assert.equal(icon.properties.size, 0, 'Do not sample badge colours before shared CSS loads');
+  handlers.get('load')();
+  for (const icon of icons) assert.equal(icon.properties.get('--dg'), palette.get(icon.tier));
   const check = (selected, title) => {
     for (const [id, section] of sections) assert.equal(section.hidden, id !== selected);
     for (const link of links) assert.equal(link.attributes.get('aria-current'),
@@ -313,4 +355,8 @@ test('section links support direct hashes, switching, history changes and safe u
   window.location.hash = '#health';
   handlers.get('hashchange')();
   check('health', 'Health');
+  for (const icon of icons) icon.properties.clear();
+  document.readyState = 'complete';
+  runInNewContext(await source('web/docs.js'), { document, window, getComputedStyle: (badge) => badge });
+  for (const icon of icons) assert.equal(icon.properties.get('--dg'), palette.get(icon.tier));
 });
